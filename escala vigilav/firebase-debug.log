@@ -1,0 +1,62 @@
+[debug] [2025-07-23T02:10:43.330Z] ----------------------------------------------------------------------
+[debug] [2025-07-23T02:10:43.341Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\User\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start --only hosting
+[debug] [2025-07-23T02:10:43.341Z] CLI Version:   14.11.1
+[debug] [2025-07-23T02:10:43.341Z] Platform:      win32
+[debug] [2025-07-23T02:10:43.342Z] Node Version:  v22.17.0
+[debug] [2025-07-23T02:10:43.342Z] Time:          Tue Jul 22 2025 23:10:43 GMT-0300 (Horário Padrão de Brasília)
+[debug] [2025-07-23T02:10:43.342Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-07-23T02:10:44.296Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-07-23T02:10:44.298Z] > authorizing via signed-in user (vigilav.mg@gmail.com)
+[info] i  emulators: Starting emulators: hosting {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: hosting"}}
+[debug] [2025-07-23T02:10:44.323Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2025-07-23T02:10:44.324Z] [hosting] Hosting Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2025-07-23T02:10:44.324Z] assigned listening specs for emulators {"user":{"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"hosting":[{"address":"127.0.0.1","family":"IPv4","port":5000}]},"metadata":{"message":"assigned listening specs for emulators"}}
+[debug] [2025-07-23T02:10:44.343Z] [hub] writing locator at C:\Users\User\AppData\Local\Temp\hub-vigilav-app.json
+[debug] [2025-07-23T02:10:44.387Z] Checked if tokens are valid: false, expires at: 1753236793329
+[debug] [2025-07-23T02:10:44.388Z] Checked if tokens are valid: false, expires at: 1753236793329
+[debug] [2025-07-23T02:10:44.389Z] > refreshing access token with scopes: []
+[debug] [2025-07-23T02:10:44.392Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2025-07-23T02:10:44.392Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-07-23T02:10:44.831Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2025-07-23T02:10:44.831Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-07-23T02:10:44.845Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/vigilav-app/sites 
+[debug] [2025-07-23T02:10:45.500Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/vigilav-app/sites 200
+[debug] [2025-07-23T02:10:45.500Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/vigilav-app/sites {"sites":[{"name":"projects/vigilav-app/sites/vigilav-app","defaultUrl":"https://vigilav-app.web.app","type":"DEFAULT_SITE"}]}
+[debug] [2025-07-23T02:10:45.500Z] Checked if tokens are valid: true, expires at: 1753240243832
+[debug] [2025-07-23T02:10:45.500Z] Checked if tokens are valid: true, expires at: 1753240243832
+[debug] [2025-07-23T02:10:45.501Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app/webApps/-/config [none]
+[debug] [2025-07-23T02:10:46.632Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app/webApps/-/config 200
+[debug] [2025-07-23T02:10:46.632Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app/webApps/-/config {"projectId":"vigilav-app","appId":"1:323672964643:web:a457717d8523e69ca07b96","storageBucket":"vigilav-app.firebasestorage.app","apiKey":"AIzaSyDANIRsjrUWo4YCWWR1y-pjnVgoHgBSS3s","authDomain":"vigilav-app.firebaseapp.com","messagingSenderId":"323672964643","measurementId":"G-3YB055L1RC"}
+[debug] [2025-07-23T02:10:46.641Z] Checked if tokens are valid: true, expires at: 1753240243832
+[debug] [2025-07-23T02:10:46.641Z] Checked if tokens are valid: true, expires at: 1753240243832
+[debug] [2025-07-23T02:10:46.642Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app [none]
+[debug] [2025-07-23T02:10:46.981Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app 200
+[debug] [2025-07-23T02:10:46.981Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app {"projectId":"vigilav-app","projectNumber":"323672964643","displayName":"vigilav-app","name":"projects/vigilav-app","resources":{"hostingSite":"vigilav-app"},"state":"ACTIVE","etag":"1_7232d178-70ce-4048-873b-f8c8749169e3"}
+[info] +  hosting[vigilav-app]: Local server: http://127.0.0.1:5000 {"metadata":{"emulator":{"name":"hosting"},"message":"Local server: \u001b[4m\u001b[1mhttp://127.0.0.1:5000\u001b[22m\u001b[24m"}}
+[warn] !  emulators: The Emulator UI is not starting, either because none of the running emulators have a UI component or the Emulator UI cannot determine the Project ID. Pass the --project flag to specify a project. {"metadata":{"emulator":{"name":"hub"},"message":"The Emulator UI is not starting, either because none of the running emulators have a UI component or the Emulator UI cannot determine the Project ID. Pass the --project flag to specify a project."}}
+[debug] [2025-07-23T02:10:47.040Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[info] 
+┌─────────────────────────────────────────────────────────────┐
+│ ✔  All emulators ready! It is now safe to connect your app. │
+└─────────────────────────────────────────────────────────────┘
+
+┌──────────┬────────────────┐
+│ Emulator │ Host:Port      │
+├──────────┼────────────────┤
+│ Hosting  │ 127.0.0.1:5000 │
+└──────────┴────────────────┘
+  Emulator Hub host: 127.0.0.1 port: 4400
+  Other reserved ports: 4500
+
+Issues? Report them at https://github.com/firebase/firebase-tools/issues and attach the *-debug.log files.
+ 
+[info] i  hosting: 127.0.0.1 - - [23/Jul/2025:02:10:55 +0000] "GET /app.js HTTP/1.1" 200 - "http://127.0.0.1:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [23/Jul/2025:02:10:55 +0000] \"GET /app.js HTTP/1.1\" 200 - \"http://127.0.0.1:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [23/Jul/2025:02:25:57 +0000] "GET /unidades HTTP/1.1" 404 147 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [23/Jul/2025:02:25:57 +0000] \"GET /unidades HTTP/1.1\" 404 147 \"-\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [23/Jul/2025:02:26:12 +0000] "GET / HTTP/1.1" 200 - "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [23/Jul/2025:02:26:12 +0000] \"GET / HTTP/1.1\" 200 - \"-\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [23/Jul/2025:02:26:12 +0000] "GET /app.js HTTP/1.1" 200 - "http://127.0.0.1:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [23/Jul/2025:02:26:12 +0000] \"GET /app.js HTTP/1.1\" 200 - \"http://127.0.0.1:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [23/Jul/2025:02:26:12 +0000] "GET /style.css HTTP/1.1" 200 - "http://127.0.0.1:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [23/Jul/2025:02:26:12 +0000] \"GET /style.css HTTP/1.1\" 200 - \"http://127.0.0.1:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [23/Jul/2025:02:26:12 +0000] "GET /js/firebase.js HTTP/1.1" 200 973 "http://127.0.0.1:5000/app.js" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [23/Jul/2025:02:26:12 +0000] \"GET /js/firebase.js HTTP/1.1\" 200 973 \"http://127.0.0.1:5000/app.js\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [23/Jul/2025:02:26:12 +0000] "GET /js/ui.js HTTP/1.1" 200 - "http://127.0.0.1:5000/app.js" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [23/Jul/2025:02:26:12 +0000] \"GET /js/ui.js HTTP/1.1\" 200 - \"http://127.0.0.1:5000/app.js\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [23/Jul/2025:02:26:13 +0000] "GET /js/router.js HTTP/1.1" 200 - "http://127.0.0.1:5000/app.js" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [23/Jul/2025:02:26:13 +0000] \"GET /js/router.js HTTP/1.1\" 200 - \"http://127.0.0.1:5000/app.js\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [23/Jul/2025:02:26:13 +0000] "GET /manifest.json HTTP/1.1" 200 448 "http://127.0.0.1:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [23/Jul/2025:02:26:13 +0000] \"GET /manifest.json HTTP/1.1\" 200 448 \"http://127.0.0.1:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}

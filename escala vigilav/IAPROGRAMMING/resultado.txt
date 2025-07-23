@@ -9,138 +9,420 @@
 import { checkAuthState, logout } from './js/auth.js';
 import { initUI } from './js/ui.js';
 import { initRouter } from './js/router.js';
-import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, updateDoc, setDoc, collection, writeBatch, serverTimestamp, getDocs, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { app } from './js/firebase.js';
 
 const appContent = document.getElementById('app-content');
 const headerTitle = document.getElementById('header-title');
-let currentUserData = null; // Vamos guardar os dados do usuÃ¡rio aqui para fÃ¡cil acesso
+let currentUserData = null;
+const auth = checkAuthState();
 
-// --- FUNÃ‡Ã•ES DE RENDERIZAÃ‡ÃƒO DE PÃGINAS ---
-
-// FunÃ§Ã£o genÃ©rica para pÃ¡ginas em construÃ§Ã£o
-function renderPlaceholder(title) {
-    if (headerTitle) headerTitle.textContent = title;
-    appContent.innerHTML = `
-        <div class="p-8">
-            <h1 class="text-3xl font-bold text-[var(--text-primary)]">${title}</h1>
-            <p class="mt-4 text-[var(--text-secondary)]">PÃ¡gina em construÃ§Ã£o...</p>
-        </div>
-    `;
+// --- FUNÃ‡Ã•ES AUXILIARES ---
+const locationCache = { states: null, cities: {} };
+async function fetchStates() {
+    console.log("[fetchStates] Buscando estados...");
+    if (locationCache.states) {
+        console.log("[fetchStates] Estados do cache local.");
+        return locationCache.states;
+    }
+    try {
+        const response = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome');
+        if (!response.ok) throw new Error('Falha na resposta da rede');
+        const statesData = await response.json();
+        locationCache.states = statesData;
+        console.log("[fetchStates] Estados buscados da API e salvos no cache local.");
+        return statesData;
+    } catch (error) { console.error('Falha ao buscar estados:', error); return []; }
 }
 
-// **NOVO**: FunÃ§Ã£o especÃ­fica para renderizar a pÃ¡gina de perfil
-function renderPerfil() {
-    if (headerTitle) headerTitle.textContent = 'Meu Perfil';
+async function fetchCitiesByState(stateUF) {
+    console.log(`[fetchCitiesByState] Buscando cidades para ${stateUF}...`);
+    if (!stateUF) return [];
+    if (locationCache.cities[stateUF]) {
+        console.log(`[fetchCitiesByState] Cidades de ${stateUF} do cache local.`);
+        return locationCache.cities[stateUF];
+    }
+    try {
+        const response = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${stateUF}/municipios?orderBy=nome`);
+        if (!response.ok) throw new Error('Falha na resposta da rede');
+        const citiesData = await response.json();
+        locationCache.cities[stateUF] = citiesData;
+        console.log(`[fetchCitiesByState] Cidades de ${stateUF} buscadas da API e salvas no cache local.`);
+        return citiesData;
+    } catch (error) { console.error(`Falha ao buscar cidades para ${stateUF}:`, error); return []; }
+}
+
+function showModal(title, contentHTML, onSave) {
+    console.log(`[showModal] Abrindo modal: ${title}`);
+    const existingModal = document.getElementById('modal-backdrop');
+    if (existingModal) existingModal.remove();
+    const modalContainer = document.createElement('div');
+    modalContainer.id = 'modal-backdrop';
+    modalContainer.className = 'fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 opacity-0 transition-opacity duration-300';
+    modalContainer.innerHTML = `
+        <div class="bg-[var(--bg-secondary)] w-full max-w-md rounded-2xl shadow-xl transform scale-95 transition-transform duration-300">
+            <header class="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
+                <h2 class="text-lg font-bold text-[var(--text-primary)]">${title}</h2>
+                <button id="close-modal-btn" class="p-1 rounded-full text-[var(--text-secondary)] hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)]"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </header>
+            <main class="p-6">${contentHTML}</main>
+            <footer class="flex justify-end gap-4 p-4 bg-[var(--bg-primary)] rounded-b-2xl border-t border-[var(--border-color)]">
+                <button id="cancel-modal-btn" class="py-2 px-4 bg-gray-600/20 text-gray-300 rounded-lg font-semibold hover:bg-gray-600/40">Cancelar</button>
+                <button id="save-modal-btn" class="py-2 px-4 bg-[var(--accent-color)] text-white rounded-lg font-semibold">${onSave ? 'Salvar' : 'OK'}</button>
+            </footer>
+        </div>
+    `;
+    document.body.appendChild(modalContainer);
+    lucide.createIcons();
+    requestAnimationFrame(() => {
+        modalContainer.classList.remove('opacity-0');
+        modalContainer.querySelector('div').classList.remove('scale-95');
+    });
+    const closeModal = () => {
+        console.log("[showModal] Fechando modal.");
+        modalContainer.classList.add('opacity-0');
+        modalContainer.querySelector('div').classList.add('scale-95');
+        setTimeout(() => modalContainer.remove(), 300);
+    };
+    document.getElementById('close-modal-btn').addEventListener('click', closeModal);
+    document.getElementById('cancel-modal-btn').addEventListener('click', closeModal);
+    modalContainer.addEventListener('click', (e) => {
+        if (e.target.id === 'modal-backdrop') closeModal();
+    });
+    if (onSave) {
+        document.getElementById('save-modal-btn').addEventListener('click', () => {
+            if (onSave()) { closeModal(); }
+        });
+    } else {
+        document.getElementById('save-modal-btn').addEventListener('click', closeModal);
+    }
+}
+
+// --- FUNÃ‡Ã•ES DE RENDERIZAÃ‡ÃƒO DE PÃGINAS ---
+function renderPlaceholder(title) {
+    console.log(`[renderPlaceholder] Renderizando: ${title}`);
+    if (headerTitle) headerTitle.textContent = title;
+    appContent.innerHTML = `<div class="p-8"><h1 class="text-3xl font-bold text-[var(--text-primary)]">${title}</h1><p class="mt-4 text-[var(--text-secondary)]">PÃ¡gina em construÃ§Ã£o...</p></div>`;
+}
+
+async function renderUnidadesPage(user) {
+    console.log("[renderUnidadesPage] Renderizando pÃ¡gina de Unidades.");
+    if (headerTitle) headerTitle.textContent = 'Minhas Unidades';
     
-    // Usa os dados do usuÃ¡rio que jÃ¡ carregamos
-    if (!currentUserData) {
-        appContent.innerHTML = `<p class="p-8 text-red-500">Erro: NÃ£o foi possÃ­vel carregar os dados do usuÃ¡rio.</p>`;
-        return;
+    const db = getFirestore(app);
+    const userDocRef = doc(db, 'users_v1', user.uid);
+    
+    // **MUDANÃ‡A CRÃTICA AQUI**: AQUI GARANTIMOS QUE O CONTEXTO ESTÃ ZERADO
+    // E A UI ATUALIZADA ANTES DE PEGAR OS PERFIS.
+    if (currentUserData.activeCompanyId) {
+        console.log("[renderUnidadesPage] UsuÃ¡rio tinha unidade ativa. Resetando contexto.");
+        await updateDoc(userDocRef, { activeCompanyId: null, activeRole: null });
+        currentUserData.activeCompanyId = null;
+        currentUserData.activeRole = null;
+        initUI(currentUserData); // ReconstrÃ³i a sidebar para o modo "raiz"
     }
 
+    const profilesRef = collection(db, `users_v1/${user.uid}/work_profiles`);
+    const profilesSnap = await getDocs(profilesRef);
+    const workProfiles = profilesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    const cardsHTML = workProfiles.map(profile => {
+        const isAdmin = profile.role === 'admin';
+        const adminActions = isAdmin ? `
+            <div class="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button title="Editar Unidade" class="edit-unit-btn p-2 rounded-full hover:bg-[var(--bg-primary)]" data-company-id="${profile.companyId}" data-company-name="${profile.companyName}"><i data-lucide="pencil" class="w-4 h-4 text-[var(--text-secondary)] pointer-events-none"></i></button>
+                <button title="Apagar Unidade" class="delete-unit-btn p-2 rounded-full hover:bg-red-500/10" data-company-id="${profile.companyId}" data-company-name="${profile.companyName}"><i data-lucide="trash-2" class="w-4 h-4 text-red-500 pointer-events-none"></i></button>
+            </div>
+        ` : '';
+        return `
+            <div class="relative bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-lg p-6 transition-all group">
+                <div class="unit-card-selectable cursor-pointer" data-company-id="${profile.companyId}" data-role="${profile.role}">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-[var(--bg-primary)] rounded-lg flex items-center justify-center"><i data-lucide="building-2" class="w-6 h-6 text-[var(--accent-color)]"></i></div>
+                        <div><h3 class="font-bold text-lg text-[var(--text-primary)]">${profile.companyName}</h3><p class="text-sm text-[var(--text-secondary)] capitalize">${profile.role}</p></div>
+                    </div>
+                </div>
+                ${adminActions}
+            </div>`;
+    }).join('');
     appContent.innerHTML = `
-        <div class="p-4 sm:p-8 max-w-2xl mx-auto">
-            <div class="bg-[var(--bg-secondary)] p-6 sm:p-8 rounded-lg shadow-lg">
-                <div class="flex flex-col sm:flex-row items-center gap-6">
-                    <!-- Placeholder para a foto do perfil -->
-                    <div class="w-24 h-24 rounded-full bg-[var(--bg-primary)] flex items-center justify-center">
-                        <i data-lucide="user" class="w-12 h-12 text-[var(--text-secondary)]"></i>
-                    </div>
-                    <div class="text-center sm:text-left">
-                        <h1 class="text-2xl sm:text-3xl font-bold text-[var(--text-primary)]">${currentUserData.displayName}</h1>
-                        <p class="text-md text-[var(--text-secondary)] mt-1">${currentUserData.email}</p>
-                    </div>
-                </div>
-
-                <div class="border-t border-[var(--border-color)] my-8"></div>
-
-                <div>
-                    <h2 class="text-xl font-bold text-[var(--text-primary)]">InformaÃ§Ãµes da Conta</h2>
-                    <div class="mt-4 space-y-2">
-                        <p class="text-[var(--text-secondary)]"><strong>Nome de usuÃ¡rio:</strong> @${currentUserData.username}</p>
-                        <p class="text-[var(--text-secondary)]"><strong>Membro desde:</strong> ${new Date(currentUserData.createdAt.seconds * 1000).toLocaleDateString()}</p>
-                        <p class="text-[var(--text-secondary)]"><strong>ID do UsuÃ¡rio:</strong> <span class="font-mono text-xs">${currentUserData.uid}</span></p>
-                    </div>
-                </div>
-                
-                <div class="border-t border-[var(--border-color)] my-8"></div>
-
-                <div class="flex justify-end">
-                    <button id="logout-btn" class="flex items-center gap-2 py-2 px-4 bg-red-600/10 border border-red-500/30 text-red-400 hover:bg-red-600/20 rounded-lg transition-colors">
-                        <i data-lucide="log-out" class="w-4 h-4"></i>
-                        Sair da Conta
-                    </button>
-                </div>
+        <div class="p-4 sm:p-8">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <h2 class="text-2xl font-bold text-[var(--text-primary)]">Selecione uma unidade</h2>
+                <button id="show-create-unit-form-btn" class="flex items-center gap-2 w-full sm:w-auto py-2 px-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"><i data-lucide="plus" class="w-5 h-5"></i><span>Criar Nova Unidade</span></button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                ${cardsHTML.length > 0 ? cardsHTML : `<div class="col-span-full text-center p-8"><p class="text-[var(--text-secondary)]">VocÃª ainda nÃ£o faz parte de nenhuma unidade.</p></div>`}
             </div>
         </div>
     `;
-
-    // Cria o Ã­cone do usuÃ¡rio
     lucide.createIcons();
+    
+    document.getElementById('show-create-unit-form-btn').addEventListener('click', () => renderCreateUnitForm(user));
+    
+    // **MUDANÃ‡A CRÃTICA**: Listener para cards de unidade agora usa a classe 'unit-card-selectable'
+    // E chama main() para reiniciar o fluxo com o novo contexto
+    document.querySelectorAll('.unit-card-selectable').forEach(card => card.addEventListener('click', async (e) => {
+        const companyId = e.currentTarget.dataset.companyId;
+        const role = e.currentTarget.dataset.role;
+        console.log(`[renderUnidadesPage] Clicado no card da unidade: ${companyId}`);
+        await updateDoc(userDocRef, { activeCompanyId: companyId, activeRole: role });
+        // Re-executa main para recarregar dados e rotear para o dashboard com o novo contexto
+        main(); 
+    }));
+    document.querySelectorAll('.edit-unit-btn').forEach(button => button.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const companyId = e.currentTarget.dataset.companyId;
+        const currentName = e.currentTarget.dataset.companyName;
+        console.log(`[renderUnidadesPage] Clicado em editar unidade: ${companyId}`);
+        const formHTML = `<input type="text" id="edit-company-name" class="profile-input edit-mode" value="${currentName}">`;
+        showModal('Editar Nome da Unidade', formHTML, async () => {
+            const newName = document.getElementById('edit-company-name').value.trim();
+            if (!newName || newName === currentName) return true;
+            const companyDocRef = doc(db, 'companies_v1', companyId);
+            await updateDoc(companyDocRef, { name: newName });
+            await updateDoc(doc(db, `users_v1/${user.uid}/work_profiles`, companyId), { companyName: newName });
+            renderUnidadesPage(user); // Re-renderiza para mostrar a mudanÃ§a
+            return true;
+        });
+    }));
+    document.querySelectorAll('.delete-unit-btn').forEach(button => button.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const companyId = e.currentTarget.dataset.companyId;
+        const companyName = e.currentTarget.dataset.companyName;
+        console.log(`[renderUnidadesPage] Clicado em apagar unidade: ${companyId}`);
+        const confirmationHTML = `<p>VocÃª tem certeza que deseja apagar a unidade "<strong>${companyName}</strong>"?<br><br><strong class="text-red-500">AtenÃ§Ã£o:</strong> Esta aÃ§Ã£o Ã© irreversÃ­vel.</p>`;
+        showModal('Confirmar ExclusÃ£o', confirmationHTML, async () => {
+            try {
+                await deleteDoc(doc(db, 'companies_v1', companyId));
+                await deleteDoc(doc(db, `users_v1/${user.uid}/work_profiles`, companyId));
+                renderUnidadesPage(user);
+            } catch (error) { console.error("Erro ao apagar unidade:", error); alert("Ocorreu um erro. Verifique as permissÃµes."); }
+            return true;
+        });
+    }));
+}
 
-    // Adiciona o evento de clique ao botÃ£o de logout
-    document.getElementById('logout-btn').addEventListener('click', async () => {
-        await logout();
-        window.location.replace('/login.html');
+async function renderLocaisPage(user) {
+    console.log("[renderLocaisPage] Renderizando Locais.");
+    if (!currentUserData.activeCompanyId) { 
+        console.warn("[renderLocaisPage] Nenhum activeCompanyId. Redirecionando para Unidades.");
+        window.history.replaceState({}, '', '/unidades'); // Navega internamente
+        renderUnidadesPage(user); // Chama a funÃ§Ã£o de renderizaÃ§Ã£o
+        return; 
+    }
+    if (headerTitle) headerTitle.textContent = 'Locais e Pontos de Ronda';
+    appContent.innerHTML = `<div class="p-8">Carregando locais...</div>`;
+    const db = getFirestore(app);
+    const locationsRef = collection(db, `companies_v1/${currentUserData.activeCompanyId}/locations`);
+    const locationsSnap = await getDocs(locationsRef);
+    const locations = locationsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    let locationsHTML = locations.length === 0 ? `<p class="text-[var(--text-secondary)]">Nenhum local cadastrado para esta unidade.</p>` : locations.map(loc => `<div class="bg-[var(--bg-secondary)] border border-[var(--border-color)] p-4 rounded-lg"><h3 class="font-bold text-[var(--text-primary)]">${loc.name}</h3><p class="text-sm text-[var(--text-secondary)]">${loc.address || 'EndereÃ§o nÃ£o informado'}</p></div>`).join('');
+    appContent.innerHTML = `
+        <div class="p-4 sm:p-8">
+            <div class="flex justify-between items-center mb-6">
+                <h1 class="text-2xl font-bold text-[var(--text-primary)]">Locais</h1>
+                <button id="add-location-btn" class="flex items-center gap-2 py-2 px-4 bg-[var(--accent-color)] text-white rounded-lg hover:bg-[var(--accent-hover)] transition-colors"><i data-lucide="plus"></i>Adicionar Local</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">${locationsHTML}</div>
+        </div>
+    `;
+    lucide.createIcons();
+    document.getElementById('add-location-btn').addEventListener('click', () => {
+        console.log("[renderLocaisPage] Clicado em adicionar local.");
+        const formHTML = `<form id="add-location-form" class="space-y-4"><div><label class="text-sm font-semibold">Nome do Local</label><input type="text" id="location-name" class="profile-input edit-mode" required placeholder="Ex: Loja Matriz"></div><div><label class="text-sm font-semibold">EndereÃ§o (opcional)</label><input type="text" id="location-address" class="profile-input edit-mode" placeholder="Ex: Av. Principal, 123"></div></form>`;
+        showModal('Adicionar Novo Local', formHTML, () => {
+            const name = document.getElementById('location-name').value.trim();
+            if (!name) { alert('O nome do local Ã© obrigatÃ³rio.'); return false; }
+            const address = document.getElementById('location-address').value.trim();
+            const locationsCol = collection(db, `companies_v1/${currentUserData.activeCompanyId}/locations`);
+            addDoc(locationsCol, { name, address, createdAt: serverTimestamp() }).then(() => {
+                console.log("[renderLocaisPage] Local adicionado com sucesso. Re-renderizando.");
+                renderLocaisPage(user);
+            }).catch(err => console.error("Erro ao adicionar local:", err));
+            return true;
+        });
     });
 }
 
+function renderAdminDashboard() {
+    console.log("[renderAdminDashboard] Renderizando Dashboard Admin.");
+    if (headerTitle) headerTitle.textContent = 'Dashboard';
+    const companyName = currentUserData.companyName || "sua unidade";
+    appContent.innerHTML = `<div class="p-8"><h1 class="text-3xl font-bold text-[var(--text-primary)]">Dashboard do Admin</h1><p class="mt-4 text-[var(--text-secondary)]">Gerenciando a unidade: <strong>${companyName}</strong></p></div>`;
+}
 
-// Mapeamento de rotas para as funÃ§Ãµes que renderizam as pÃ¡ginas
+function renderMemberDashboard() {
+    console.log("[renderMemberDashboard] Renderizando Dashboard Vigilante.");
+    if (headerTitle) headerTitle.textContent = 'Dashboard';
+    const companyName = currentUserData.companyName || "sua unidade";
+    appContent.innerHTML = `<div class="p-8"><h1 class="text-3xl font-bold text-[var(--text-primary)]">Dashboard do Vigilante</h1><p class="mt-4 text-[var(--text-secondary)]">VocÃª faz parte da unidade: <strong>${companyName}</strong></p></div>`;
+}
+
+function renderCreateUnitForm(user) {
+    console.log("[renderCreateUnitForm] Renderizando formulÃ¡rio de CriaÃ§Ã£o de Unidade.");
+    if (headerTitle) headerTitle.textContent = 'Criar Nova Unidade';
+    appContent.innerHTML = `<div class="p-4 sm:p-8 max-w-2xl mx-auto"><div class="bg-[var(--bg-secondary)] border border-[var(--border-color)] p-8 sm:p-10 rounded-2xl shadow-lg"><h1 class="text-3xl font-bold text-[var(--text-primary)]">Dados da sua Unidade</h1><p class="mt-2 text-[var(--text-secondary)]">Preencha as informaÃ§Ãµes abaixo para criar sua equipe.</p><form id="createUnitForm" class="space-y-6 mt-8"><div><label class="text-sm font-semibold text-[var(--text-primary)] opacity-90">Nome da Unidade/Empresa</label><input id="companyName" type="text" class="profile-input edit-mode" required></div><div><label class="text-sm font-semibold text-[var(--text-primary)] opacity-90">CNPJ (opcional)</label><input type="text" id="companyCnpj" class="profile-input edit-mode"></div><div class="flex flex-col sm:flex-row gap-4 !mt-8"><button type="button" id="cancel-create-btn" class="w-full sm:w-auto py-3 px-5 bg-gray-600/20 text-gray-300 hover:bg-gray-600/40 font-bold rounded-lg transition-colors">Voltar para o Perfil</button><button type="submit" class="w-full sm:w-auto flex-grow py-3 px-5 bg-[var(--accent-color)] hover:bg-[var(--accent-hover)] text-white font-bold rounded-lg transition-colors">Finalizar e Criar Unidade</button></div></form></div></div>`;
+    document.getElementById('cancel-create-btn').addEventListener('click', renderPerfil);
+    document.getElementById('createUnitForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitButton = e.target.querySelector('button[type="submit"]');
+        submitButton.textContent = 'Criando...';
+        submitButton.disabled = true;
+        const companyName = document.getElementById('companyName').value.trim();
+        const companyCnpj = document.getElementById('companyCnpj').value.trim();
+        if (!companyName) { alert("O nome da unidade Ã© obrigatÃ³rio."); submitButton.textContent = 'Finalizar e Criar Unidade'; submitButton.disabled = false; return; }
+        try {
+            const db = getFirestore(app); const batch = writeBatch(db); const companyRef = doc(collection(db, "companies_v1")); batch.set(companyRef, { name: companyName, cnpj: companyCnpj, ownerId: user.uid, createdAt: serverTimestamp(), plan: 'free' }); const workProfileRef = doc(db, `users_v1/${user.uid}/work_profiles`, companyRef.id); batch.set(workProfileRef, { companyId: companyRef.id, companyName: companyName, role: 'admin', status: 'active', joinedAt: serverTimestamp() }); const userDocRef = doc(db, "users_v1", user.uid); batch.update(userDocRef, { activeCompanyId: companyRef.id, activeRole: 'admin' }); await batch.commit(); 
+            console.log("[renderCreateUnitForm] Unidade criada e perfil atualizado. Redirecionando para Dashboard.");
+            // Re-executa main para recarregar dados e rotear para o dashboard
+            window.history.replaceState({}, '', '/dashboard'); // Garante que a URL esteja correta
+            main(); 
+        } catch (error) { console.error("Erro ao criar unidade:", error); alert("Ocorreu um erro. Tente novamente."); submitButton.textContent = 'Finalizar e Criar Unidade'; submitButton.disabled = false; }
+    });
+}
+
+function renderPerfil() {
+    console.log("[renderPerfil] Renderizando Meu Perfil.");
+    if (headerTitle) headerTitle.textContent = 'Meu Perfil';
+    if (!currentUserData) { console.error("[renderPerfil] currentUserData Ã© nulo."); appContent.innerHTML = `<p class="p-8 text-red-500">Erro ao carregar seus dados.</p>`; return; }
+    appContent.innerHTML = `<div class="p-4 sm:p-8 max-w-3xl mx-auto"><div id="profile-container" class="bg-[var(--bg-secondary)] border border-[var(--border-color)] p-8 sm:p-10 rounded-2xl shadow-lg"></div></div>`;
+    renderProfileViewMode();
+}
+
+function renderProfileViewMode() {
+    console.log("[renderProfileViewMode] Renderizando modo de visualizaÃ§Ã£o do Perfil.");
+    const { displayName, email, description, phone, country, state, city } = currentUserData;
+    const container = document.getElementById('profile-container'); if (!container) return;
+    container.innerHTML = `
+        <div class="flex items-center justify-between mb-10"><div class="flex items-center gap-6"><div class="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[var(--bg-primary)] flex items-center justify-center flex-shrink-0"><i data-lucide="user" class="w-10 h-10 text-[var(--text-secondary)]"></i></div><div class="overflow-hidden"><h2 class="text-2xl sm:text-3xl font-bold text-[var(--text-primary)] truncate">${displayName}</h2><p class="text-md text-[var(--text-secondary)] mt-1 truncate">${email}</p></div></div><button id="edit-profile-btn" class="flex-shrink-0 py-2 px-4 bg-indigo-600/10 text-indigo-400 font-semibold rounded-lg hover:bg-indigo-600/20 transition">Editar</button></div>
+        <div class="space-y-6"><div><label class="text-sm font-semibold text-[var(--text-primary)] opacity-90">DescriÃ§Ã£o</label><p class="text-[var(--text-secondary)] mt-1 min-h-[1.5rem]">${description || 'NÃ£o informado'}</p></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-6"><div><label class="text-sm font-semibold text-[var(--text-primary)] opacity-90">Telefone</label><p class="text-[var(--text-secondary)] mt-1 min-h-[1.5rem]">${phone || 'NÃ£o informado'}</p></div><div><label class="text-sm font-semibold text-[var(--text-primary)] opacity-90">PaÃ­s</label><p class="text-[var(--text-secondary)] mt-1 min-h-[1.5rem]">${country || 'Brasil'}</p></div><div><label class="text-sm font-semibold text-[var(--text-primary)] opacity-90">Estado</label><p class="text-[var(--text-secondary)] mt-1 min-h-[1.5rem]">${state || 'NÃ£o informado'}</p></div><div><label class="text-sm font-semibold text-[var(--text-primary)] opacity-90">Cidade</label><p class="text-[var(--text-secondary)] mt-1 min-h-[1.5rem]">${city || 'NÃ£o informada'}</p></div></div></div>
+        <div class="border-t border-[var(--border-color)] my-8"></div>
+        <div id="unit-management-section"><h2 class="text-xl font-bold text-[var(--text-primary)]">Gerenciamento de Unidade</h2>${!currentUserData.activeCompanyId ? `<p class="mt-2 text-[var(--text-secondary)]">Crie sua primeira unidade para gerenciar equipes.</p><button id="create-unit-btn" class="mt-4 py-3 px-5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg">Criar Nova Unidade</button>` : `<p class="mt-2 text-[var(--text-secondary)]">Visite a pÃ¡gina 'Unidades' para ver todas as suas equipes ou criar uma nova.</p><a href="/unidades" class="nav-link inline-block mt-4 py-3 px-5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg">Ver Minhas Unidades</a>`}</div>
+    `;
+    lucide.createIcons();
+    document.getElementById('edit-profile-btn').addEventListener('click', renderProfileEditMode);
+    const createBtn = document.getElementById('create-unit-btn');
+    if (createBtn) createBtn.addEventListener('click', () => renderCreateUnitForm(auth.currentUser));
+}
+
+async function renderProfileEditMode() {
+    console.log("[renderProfileEditMode] Renderizando modo de ediÃ§Ã£o do Perfil.");
+    const { displayName, description, phone, state, city, uid } = currentUserData;
+    const container = document.getElementById('profile-container'); if (!container) return;
+    container.innerHTML = `
+        <h2 class="text-2xl font-bold text-[var(--text-primary)] mb-6">Editando Perfil</h2>
+        <form id="edit-form" class="space-y-6">
+            <div><label class="text-sm font-semibold text-[var(--text-primary)] opacity-90">Nome de ExibiÃ§Ã£o</label><input id="displayNameInput" type="text" value="${displayName}" class="profile-input edit-mode"></div>
+            <div><label class="text-sm font-semibold text-[var(--text-primary)] opacity-90">DescriÃ§Ã£o</label><textarea id="descriptionInput" class="profile-input edit-mode" rows="3">${description || ''}</textarea></div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-6">
+                <div><label class="text-sm font-semibold text-[var(--text-primary)] opacity-90">Telefone</label><input type="tel" id="phoneInput" value="${phone || ''}" class="profile-input edit-mode"></div>
+                <div><label class="text-sm font-semibold text-[var(--text-primary)] opacity-90">PaÃ­s</label><select id="countryInput" class="profile-input edit-mode"><option value="Brasil">Brasil</option></select></div>
+                <div><label class="text-sm font-semibold text-[var(--text-primary)] opacity-90">Estado</label><select id="stateSelect" class="profile-input edit-mode"><option>Carregando...</option></select></div>
+                <div><label class="text-sm font-semibold text-[var(--text-primary)] opacity-90">Cidade</label><select id="citySelect" class="profile-input edit-mode" disabled><option>Selecione um estado</option></select></div>
+            </div>
+            <div class="flex justify-end gap-4 pt-4"><button type="button" id="cancel-edit-btn" class="py-2 px-4 bg-gray-600/20 text-gray-300 rounded-lg font-semibold">Cancelar</button><button type="submit" id="save-profile-btn" class="py-2 px-4 bg-emerald-600/20 text-emerald-400 rounded-lg font-semibold">Salvar AlteraÃ§Ãµes</button></div>
+        </form>
+    `;
+    const stateSelect = document.getElementById('stateSelect');
+    const citySelect = document.getElementById('citySelect');
+    const populateCities = async (stateUF, cityToSelect) => {
+        if (!stateUF) { citySelect.disabled = true; citySelect.innerHTML = '<option value="">Selecione um estado</option>'; return; }
+        citySelect.disabled = true; citySelect.innerHTML = '<option>Carregando...</option>';
+        const citiesList = await fetchCitiesByState(stateUF);
+        let cityOptionsHTML = '<option value="">Selecione</option>';
+        citiesList.forEach(c => { cityOptionsHTML += `<option value="${c.nome}" ${c.nome === cityToSelect ? 'selected' : ''}>${c.nome}</option>`; });
+        citySelect.innerHTML = cityOptionsHTML;
+        citySelect.disabled = false;
+    };
+    const populateStates = async () => {
+        const statesList = await fetchStates();
+        stateSelect.innerHTML = '<option value="">Selecione</option>';
+        statesList.forEach(s => { stateSelect.innerHTML += `<option value="${s.sigla}" ${s.sigla === state ? 'selected' : ''}>${s.nome}</option>`; });
+        if (state) await populateCities(state, city);
+    };
+    await populateStates();
+    stateSelect.addEventListener('change', () => populateCities(stateSelect.value));
+    document.getElementById('cancel-edit-btn').addEventListener('click', renderProfileViewMode);
+    document.getElementById('edit-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const saveBtn = document.getElementById('save-profile-btn'); saveBtn.textContent = 'Salvando...'; saveBtn.disabled = true;
+        const dataToUpdate = {
+            displayName: document.getElementById('displayNameInput').value.trim(), description: document.getElementById('descriptionInput').value.trim(), phone: document.getElementById('phoneInput').value.trim(), state: stateSelect.value, city: citySelect.value, country: document.getElementById('countryInput').value,
+        };
+        try {
+            const db = getFirestore(app); await updateDoc(doc(db, "users_v1", uid), dataToUpdate); currentUserData = { ...currentUserData, ...dataToUpdate }; renderProfileViewMode();
+        } catch(error) { console.error("Erro ao salvar:", error); saveBtn.textContent = 'Salvar AlteraÃ§Ãµes'; saveBtn.disabled = false; }
+    });
+}
+
 const pageRenderers = {
-    '/dashboard': () => renderPlaceholder('Dashboard'),
+    '/unidades': (user) => renderUnidadesPage(user),
+    '/locais': (user) => renderLocaisPage(user),
+    '/dashboard': (user) => {
+        if (currentUserData && currentUserData.activeCompanyId) {
+            console.log("[Router] Dashboard: UsuÃ¡rio com unidade ativa. Renderizando dashboard especÃ­fico.");
+            if (currentUserData.activeRole === 'admin') renderAdminDashboard(); else renderMemberDashboard();
+        } else {
+            console.log("[Router] Dashboard: UsuÃ¡rio sem unidade ativa. Redirecionando para /unidades.");
+            window.history.replaceState({}, '', '/unidades'); // Atualiza a URL
+            renderUnidadesPage(user); // Chama a funÃ§Ã£o de renderizaÃ§Ã£o diretamente
+        }
+    },
     '/rondas': () => renderPlaceholder('Rondas'),
     '/escalas': () => renderPlaceholder('Escalas'),
     '/historico': () => renderPlaceholder('HistÃ³rico'),
-    '/equipe': () => renderPlaceholder('Minha Equipe'),
-    '/perfil': renderPerfil, // **NOVO**: Aponta para a nossa nova funÃ§Ã£o
+    '/equipe': (user) => renderEquipePage(user),
+    '/perfil': renderPerfil,
     '/404': () => renderPlaceholder('PÃ¡gina nÃ£o encontrada'),
 };
 
-
-// --- FUNÃ‡ÃƒO PRINCIPAL ---
 async function main() {
-    const user = await checkAuthState();
-
+    console.log("[main] Iniciando a aplicaÃ§Ã£o...");
+    const user = await auth; // Espera a autenticaÃ§Ã£o ser verificada
+    
     if (user) {
-        // Busca os dados do usuÃ¡rio no Firestore UMA VEZ ao carregar o app
+        console.log(`[main] UsuÃ¡rio logado: ${user.uid}.`);
+        const db = getFirestore(app);
         try {
-            const db = getFirestore(app);
             const userDocSnap = await getDoc(doc(db, "users_v1", user.uid));
             if (userDocSnap.exists()) {
-                currentUserData = userDocSnap.data(); // Armazena os dados globalmente
-            } else {
-                throw new Error("Perfil do usuÃ¡rio nÃ£o encontrado no Firestore.");
-            }
+                currentUserData = userDocSnap.data();
+                if (currentUserData.activeCompanyId) {
+                    const companySnap = await getDoc(doc(db, "companies_v1", currentUserData.activeCompanyId));
+                    if (companySnap.exists()) currentUserData.companyName = companySnap.data().name;
+                    console.log(`[main] UsuÃ¡rio em unidade ativa: ${currentUserData.companyName} (${currentUserData.activeRole}).`);
+                } else {
+                    console.log("[main] UsuÃ¡rio sem unidade ativa.");
+                }
+            } else { throw new Error("Perfil do usuÃ¡rio nÃ£o encontrado no Firestore."); }
         } catch (error) {
-            console.error("Falha ao carregar dados do usuÃ¡rio:", error);
+            console.error("[main] Falha ao carregar dados do usuÃ¡rio:", error);
             appContent.innerHTML = `<p class="p-8 text-red-500">Erro crÃ­tico ao carregar seu perfil. Tente recarregar a pÃ¡gina.</p>`;
-            return;
+            return; // Impede a inicializaÃ§Ã£o se os dados do usuÃ¡rio falharem
         }
 
-        // UsuÃ¡rio e dados carregados, agora construÃ­mos a UI
-        initUI();
+        console.log("[main] Inicializando UI e Roteador.");
+        initUI(currentUserData); // Sempre inicializa a UI se o usuÃ¡rio estiver logado
         
-        const routesWithRoot = {
-            '/': () => {
-                window.history.replaceState({}, '', '/dashboard');
-                pageRenderers['/dashboard']();
-            },
-            ...pageRenderers
-        };
+        const routerFunctions = {};
+        for (const path in pageRenderers) {
+            routerFunctions[path] = () => pageRenderers[path](user);
+        }
+        initRouter(routerFunctions); // Sempre inicializa o roteador
+        console.log("[main] InicializaÃ§Ã£o completa. Roteador ativo.");
 
-        initRouter(routesWithRoot);
     } else {
-        // UsuÃ¡rio nÃ£o estÃ¡ logado
+        console.log("[main] UsuÃ¡rio nÃ£o logado.");
         const publicPages = ['/login.html', '/registro.html'];
         if (!publicPages.includes(window.location.pathname)) {
+            console.log("[main] Redirecionando para login.");
             window.location.replace('/login.html');
+        } else {
+            console.log("[main] JÃ¡ em pÃ¡gina pÃºblica (login/registro).");
         }
     }
 }
-
-// Inicia a aplicaÃ§Ã£o
 main();
 <!DOCTYPE html>
 <html lang="pt-BR" data-theme="dark">
@@ -271,47 +553,44 @@ main();
     </script>
 </body>
 </html>
-[debug] [2025-07-22T23:01:27.063Z] ----------------------------------------------------------------------
-[debug] [2025-07-22T23:01:27.072Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\User\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start --only hosting
-[debug] [2025-07-22T23:01:27.074Z] CLI Version:   14.11.1
-[debug] [2025-07-22T23:01:27.075Z] Platform:      win32
-[debug] [2025-07-22T23:01:27.075Z] Node Version:  v22.17.0
-[debug] [2025-07-22T23:01:27.076Z] Time:          Tue Jul 22 2025 20:01:27 GMT-0300 (HorÃ¡rio PadrÃ£o de BrasÃ­lia)
-[debug] [2025-07-22T23:01:27.079Z] ----------------------------------------------------------------------
+[debug] [2025-07-23T02:10:43.330Z] ----------------------------------------------------------------------
+[debug] [2025-07-23T02:10:43.341Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\User\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start --only hosting
+[debug] [2025-07-23T02:10:43.341Z] CLI Version:   14.11.1
+[debug] [2025-07-23T02:10:43.341Z] Platform:      win32
+[debug] [2025-07-23T02:10:43.342Z] Node Version:  v22.17.0
+[debug] [2025-07-23T02:10:43.342Z] Time:          Tue Jul 22 2025 23:10:43 GMT-0300 (HorÃ¡rio PadrÃ£o de BrasÃ­lia)
+[debug] [2025-07-23T02:10:43.342Z] ----------------------------------------------------------------------
 [debug] 
-[debug] [2025-07-22T23:01:27.085Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
-[debug] [2025-07-22T23:01:28.380Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
-[debug] [2025-07-22T23:01:28.381Z] > authorizing via signed-in user (vigilav.mg@gmail.com)
+[debug] [2025-07-23T02:10:44.296Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-07-23T02:10:44.298Z] > authorizing via signed-in user (vigilav.mg@gmail.com)
 [info] i  emulators: Starting emulators: hosting {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: hosting"}}
-[debug] [2025-07-22T23:01:28.421Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
-[debug] [2025-07-22T23:01:28.421Z] [hosting] Hosting Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
-[debug] [2025-07-22T23:01:28.422Z] assigned listening specs for emulators {"user":{"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"hosting":[{"address":"127.0.0.1","family":"IPv4","port":5000}]},"metadata":{"message":"assigned listening specs for emulators"}}
-[debug] [2025-07-22T23:01:28.445Z] [hub] writing locator at C:\Users\User\AppData\Local\Temp\hub-vigilav-app.json
-[debug] [2025-07-22T23:01:28.492Z] Checked if tokens are valid: false, expires at: 1752635772622
-[debug] [2025-07-22T23:01:28.492Z] Checked if tokens are valid: false, expires at: 1752635772622
-[debug] [2025-07-22T23:01:28.493Z] > refreshing access token with scopes: []
-[debug] [2025-07-22T23:01:28.495Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
-[debug] [2025-07-22T23:01:28.495Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
-[debug] [2025-07-22T23:01:28.868Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
-[debug] [2025-07-22T23:01:28.869Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
-[debug] [2025-07-22T23:01:29.002Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
-[debug] [2025-07-22T23:01:29.002Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
-[debug] [2025-07-22T23:01:29.016Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/vigilav-app/sites 
-[debug] [2025-07-22T23:01:30.362Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/vigilav-app/sites 200
-[debug] [2025-07-22T23:01:30.363Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/vigilav-app/sites {"sites":[{"name":"projects/vigilav-app/sites/vigilav-app","defaultUrl":"https://vigilav-app.web.app","type":"DEFAULT_SITE"}]}
-[debug] [2025-07-22T23:01:30.363Z] Checked if tokens are valid: true, expires at: 1753228888003
-[debug] [2025-07-22T23:01:30.363Z] Checked if tokens are valid: true, expires at: 1753228888003
-[debug] [2025-07-22T23:01:30.364Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app/webApps/-/config [none]
-[debug] [2025-07-22T23:01:31.623Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app/webApps/-/config 200
-[debug] [2025-07-22T23:01:31.624Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app/webApps/-/config {"projectId":"vigilav-app","appId":"1:323672964643:web:a457717d8523e69ca07b96","storageBucket":"vigilav-app.firebasestorage.app","apiKey":"AIzaSyDANIRsjrUWo4YCWWR1y-pjnVgoHgBSS3s","authDomain":"vigilav-app.firebaseapp.com","messagingSenderId":"323672964643","measurementId":"G-3YB055L1RC"}
-[debug] [2025-07-22T23:01:31.634Z] Checked if tokens are valid: true, expires at: 1753228888003
-[debug] [2025-07-22T23:01:31.635Z] Checked if tokens are valid: true, expires at: 1753228888003
-[debug] [2025-07-22T23:01:31.636Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app [none]
-[debug] [2025-07-22T23:01:31.996Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app 200
-[debug] [2025-07-22T23:01:31.997Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app {"projectId":"vigilav-app","projectNumber":"323672964643","displayName":"vigilav-app","name":"projects/vigilav-app","resources":{"hostingSite":"vigilav-app"},"state":"ACTIVE","etag":"1_7232d178-70ce-4048-873b-f8c8749169e3"}
+[debug] [2025-07-23T02:10:44.323Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2025-07-23T02:10:44.324Z] [hosting] Hosting Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2025-07-23T02:10:44.324Z] assigned listening specs for emulators {"user":{"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"hosting":[{"address":"127.0.0.1","family":"IPv4","port":5000}]},"metadata":{"message":"assigned listening specs for emulators"}}
+[debug] [2025-07-23T02:10:44.343Z] [hub] writing locator at C:\Users\User\AppData\Local\Temp\hub-vigilav-app.json
+[debug] [2025-07-23T02:10:44.387Z] Checked if tokens are valid: false, expires at: 1753236793329
+[debug] [2025-07-23T02:10:44.388Z] Checked if tokens are valid: false, expires at: 1753236793329
+[debug] [2025-07-23T02:10:44.389Z] > refreshing access token with scopes: []
+[debug] [2025-07-23T02:10:44.392Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2025-07-23T02:10:44.392Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-07-23T02:10:44.831Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2025-07-23T02:10:44.831Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-07-23T02:10:44.845Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/vigilav-app/sites 
+[debug] [2025-07-23T02:10:45.500Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/vigilav-app/sites 200
+[debug] [2025-07-23T02:10:45.500Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/vigilav-app/sites {"sites":[{"name":"projects/vigilav-app/sites/vigilav-app","defaultUrl":"https://vigilav-app.web.app","type":"DEFAULT_SITE"}]}
+[debug] [2025-07-23T02:10:45.500Z] Checked if tokens are valid: true, expires at: 1753240243832
+[debug] [2025-07-23T02:10:45.500Z] Checked if tokens are valid: true, expires at: 1753240243832
+[debug] [2025-07-23T02:10:45.501Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app/webApps/-/config [none]
+[debug] [2025-07-23T02:10:46.632Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app/webApps/-/config 200
+[debug] [2025-07-23T02:10:46.632Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app/webApps/-/config {"projectId":"vigilav-app","appId":"1:323672964643:web:a457717d8523e69ca07b96","storageBucket":"vigilav-app.firebasestorage.app","apiKey":"AIzaSyDANIRsjrUWo4YCWWR1y-pjnVgoHgBSS3s","authDomain":"vigilav-app.firebaseapp.com","messagingSenderId":"323672964643","measurementId":"G-3YB055L1RC"}
+[debug] [2025-07-23T02:10:46.641Z] Checked if tokens are valid: true, expires at: 1753240243832
+[debug] [2025-07-23T02:10:46.641Z] Checked if tokens are valid: true, expires at: 1753240243832
+[debug] [2025-07-23T02:10:46.642Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app [none]
+[debug] [2025-07-23T02:10:46.981Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app 200
+[debug] [2025-07-23T02:10:46.981Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app {"projectId":"vigilav-app","projectNumber":"323672964643","displayName":"vigilav-app","name":"projects/vigilav-app","resources":{"hostingSite":"vigilav-app"},"state":"ACTIVE","etag":"1_7232d178-70ce-4048-873b-f8c8749169e3"}
 [info] +  hosting[vigilav-app]: Local server: http://127.0.0.1:5000 {"metadata":{"emulator":{"name":"hosting"},"message":"Local server: \u001b[4m\u001b[1mhttp://127.0.0.1:5000\u001b[22m\u001b[24m"}}
 [warn] !  emulators: The Emulator UI is not starting, either because none of the running emulators have a UI component or the Emulator UI cannot determine the Project ID. Pass the --project flag to specify a project. {"metadata":{"emulator":{"name":"hub"},"message":"The Emulator UI is not starting, either because none of the running emulators have a UI component or the Emulator UI cannot determine the Project ID. Pass the --project flag to specify a project."}}
-[debug] [2025-07-22T23:01:32.198Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[debug] [2025-07-23T02:10:47.040Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
 [info] 
 â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
 â”‚ âœ”  All emulators ready! It is now safe to connect your app. â”‚
@@ -327,19 +606,7 @@ main();
 
 Issues? Report them at https://github.com/firebase/firebase-tools/issues and attach the *-debug.log files.
  
-[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] "GET / HTTP/1.1" 200 - "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] \"GET / HTTP/1.1\" 200 - \"-\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
-[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] "GET /app.js HTTP/1.1" 200 - "http://127.0.0.1:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] \"GET /app.js HTTP/1.1\" 200 - \"http://127.0.0.1:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
-[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] "GET /style.css HTTP/1.1" 200 - "http://127.0.0.1:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] \"GET /style.css HTTP/1.1\" 200 - \"http://127.0.0.1:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
-[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] "GET /js/auth.js HTTP/1.1" 200 - "http://127.0.0.1:5000/app.js" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] \"GET /js/auth.js HTTP/1.1\" 200 - \"http://127.0.0.1:5000/app.js\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
-[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] "GET /js/ui.js HTTP/1.1" 200 - "http://127.0.0.1:5000/app.js" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] \"GET /js/ui.js HTTP/1.1\" 200 - \"http://127.0.0.1:5000/app.js\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
-[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] "GET /js/firebase.js HTTP/1.1" 200 973 "http://127.0.0.1:5000/app.js" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] \"GET /js/firebase.js HTTP/1.1\" 200 973 \"http://127.0.0.1:5000/app.js\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
-[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] "GET /js/router.js HTTP/1.1" 200 - "http://127.0.0.1:5000/app.js" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] \"GET /js/router.js HTTP/1.1\" 200 - \"http://127.0.0.1:5000/app.js\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
-[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:53 +0000] "GET /favicon.ico HTTP/1.1" 404 150 "http://127.0.0.1:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:53 +0000] \"GET /favicon.ico HTTP/1.1\" 404 150 \"http://127.0.0.1:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
-[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:53 +0000] "GET /manifest.json HTTP/1.1" 200 448 "http://127.0.0.1:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:53 +0000] \"GET /manifest.json HTTP/1.1\" 200 448 \"http://127.0.0.1:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
-[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:53 +0000] "GET /assets/icons/icon-192.png HTTP/1.1" 200 15046 "http://127.0.0.1:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:53 +0000] \"GET /assets/icons/icon-192.png HTTP/1.1\" 200 15046 \"http://127.0.0.1:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
-[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:53 +0000] "GET /login.html HTTP/1.1" 200 - "http://127.0.0.1:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:53 +0000] \"GET /login.html HTTP/1.1\" 200 - \"http://127.0.0.1:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
-[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:53 +0000] "GET /assets/vigilav-white.png HTTP/1.1" 200 1433035 "http://127.0.0.1:5000/login.html" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:53 +0000] \"GET /assets/vigilav-white.png HTTP/1.1\" 200 1433035 \"http://127.0.0.1:5000/login.html\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
-[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:02:19 +0000] "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 187 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:02:19 +0000] \"GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1\" 404 187 \"-\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [23/Jul/2025:02:10:55 +0000] "GET /app.js HTTP/1.1" 200 - "http://127.0.0.1:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [23/Jul/2025:02:10:55 +0000] \"GET /app.js HTTP/1.1\" 200 - \"http://127.0.0.1:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
 {
   "hosting": {
     "public": ".",
@@ -696,6 +963,7 @@ service cloud.firestore {
     }
   ]
 }
+# vigilapp-web
 <!DOCTYPE html>
 <html lang="pt-BR" data-theme="dark">
 <head>
@@ -918,44 +1186,32 @@ self.addEventListener('fetch', event => {
     --gradient-end: var(--gradient-end-dark);
 }
 
-/* Gradiente Animado para as pÃ¡ginas de autenticaÃ§Ã£o */
-body.auth-page { 
-    font-family: 'Sora', sans-serif; 
-    background: linear-gradient(-45deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end), var(--gradient-start));
-    background-size: 400% 400%; 
-    animation: gradientBG 25s ease infinite;
-    color: var(--text-secondary); 
-    transition: background 0.5s ease-in-out;
-    overflow-x: hidden;
-}
-@keyframes gradientBG { 
-    0% { background-position: 0% 50%; } 
-    50% { background-position: 100% 50%; } 
-    100% { background-position: 0% 50%; } 
-}
-
-/* AnimaÃ§Ãµes de Entrada */
-@keyframes fadeInDown { from { opacity: 0; transform: translate3d(0, -20px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
-@keyframes fadeInUp { from { opacity: 0; transform: translate3d(0, 20px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
-.animated-element { opacity: 0; animation-fill-mode: forwards; }
-.animate-down { animation-name: fadeInDown; animation-duration: 0.8s; }
-.animate-up { animation-name: fadeInUp; animation-duration: 0.8s; }
-.delay-1 { animation-delay: 0.2s; } 
-.delay-2 { animation-delay: 0.4s; } 
-.delay-3 { animation-delay: 0.6s; }
-
-/* Views de AutenticaÃ§Ã£o (Login/Registro/Esqueci a Senha) */
-.auth-view { display: none; animation: fadeInUp 0.5s ease-in-out; }
-.auth-view.active { display: block; }
-
-/* Estilos para a app principal (serÃ£o usados depois) */
-body:not(.auth-page) {
+body { 
     font-family: 'Sora', sans-serif; 
     background-color: var(--bg-primary); 
     color: var(--text-secondary);
 }
 
-/* CORREÃ‡ÃƒO PARA AUTOCOMPLETE DO NAVEGADOR */
+body.auth-page { 
+    background: linear-gradient(-45deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end), var(--gradient-start));
+    background-size: 400% 400%; 
+    animation: gradientBG 25s ease infinite;
+    transition: background 0.5s ease-in-out;
+    overflow-x: hidden;
+}
+@keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+
+/* AnimaÃ§Ãµes e Views de AutenticaÃ§Ã£o */
+@keyframes fadeInDown { from { opacity: 0; transform: translate3d(0, -20px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
+@keyframes fadeInUp { from { opacity: 0; transform: translate3d(0, 20px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
+.animated-element { opacity: 0; animation-fill-mode: forwards; }
+.animate-down { animation-name: fadeInDown; animation-duration: 0.8s; }
+.animate-up { animation-name: fadeInUp; animation-duration: 0.8s; }
+.delay-1 { animation-delay: 0.2s; } .delay-2 { animation-delay: 0.4s; } .delay-3 { animation-delay: 0.6s; }
+.auth-view { display: none; animation: fadeInUp 0.5s ease-in-out; }
+.auth-view.active { display: block; }
+
+/* CorreÃ§Ã£o para Autocomplete do Navegador */
 input:-webkit-autofill,
 input:-webkit-autofill:hover, 
 input:-webkit-autofill:focus, 
@@ -964,26 +1220,79 @@ input:-webkit-autofill:active {
     -webkit-text-fill-color: var(--text-primary) !important;
     caret-color: var(--text-primary) !important;
 }
-/* Adicione estas novas regras ao final do seu style.css */
 
-/* Estilos da NavegaÃ§Ã£o */
-.sidebar, .bottom-nav {
-    transition: transform 0.3s ease-in-out;
-}
-
-.sidebar-overlay {
-    transition: opacity 0.3s ease-in-out;
-}
-
-/* Estilo do Link Ativo - MUITO IMPORTANTE */
+/* Estilos da NavegaÃ§Ã£o Principal */
+.sidebar, .bottom-nav { transition: transform 0.3s ease-in-out; }
+.sidebar-overlay { transition: opacity 0.3s ease-in-out; }
 .nav-link.active {
     background-color: var(--bg-primary);
     color: var(--text-primary);
     font-weight: 600;
 }
-
-/* No mobile, o link ativo ganha a cor de acento */
 .bottom-nav .nav-link.active {
     color: var(--accent-color);
-    background-color: transparent; /* Remove o fundo da versÃ£o desktop */
+    background-color: transparent;
+}
+
+/* **NOVO**: Estilos para campos de formulÃ¡rio no perfil */
+.profile-input {
+    width: 100%;
+    transition: all 0.2s ease-in-out;
+    outline: none;
+}
+
+/* Estilo para MODO DE VISUALIZAÃ‡ÃƒO (padrÃ£o) */
+.profile-input.view-mode {
+    background-color: transparent !important;
+    border: 2px solid transparent !important;
+    padding: 0.75rem 0; /* EspaÃ§amento vertical, sem espaÃ§amento lateral para alinhar */
+    color: var(--text-secondary) !important;
+    -webkit-text-fill-color: var(--text-secondary) !important;
+    cursor: default;
+    box-shadow: none;
+}
+textarea.profile-input.view-mode {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+}
+
+/* Estilo para MODO DE EDIÃ‡ÃƒO */
+.profile-input.edit-mode {
+    background-color: var(--bg-primary) !important;
+    border: 2px solid var(--border-color) !important;
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    color: var(--text-primary) !important;
+    -webkit-text-fill-color: var(--text-primary) !important;
+}
+textarea.profile-input.edit-mode { cursor: text; }
+select.profile-input.edit-mode { cursor: pointer; }
+
+/* Efeito de FOCO apenas no modo de ediÃ§Ã£o */
+.profile-input.edit-mode:focus {
+    border-color: var(--accent-color) !important;
+    box-shadow: 0 0 0 3px var(--accent-color-transparent, rgba(20, 184, 166, 0.2));
+}
+
+/* Remove a seta do select no modo de visualizaÃ§Ã£o */
+select.profile-input.view-mode {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+}
+
+/* Garante que o input do nome se comporte bem em ambos os modos */
+#displayNameInput.view-mode {
+    padding: 0;
+    color: var(--text-primary) !important;
+    -webkit-text-fill-color: var(--text-primary) !important;
+    font-size: 1.875rem; /* text-3xl */
+    line-height: 2.25rem;
+    font-weight: 700;
+}
+#displayNameInput.edit-mode {
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+    font-weight: 700;
+    padding: 0.5rem;
 }
