@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vigilav</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-[var(--bg-primary)] text-[var(--text-primary)]">
+    <div class="flex h-screen">
+        <!-- Overlay para a sidebar no mobile -->
+        <div id="sidebar-overlay" class="sidebar-overlay fixed inset-0 bg-black/60 z-30 opacity-0 pointer-events-none lg:hidden"></div>
+
+        <!-- Sidebar com o ID correto -->
+        <aside id="sidebar" class="sidebar fixed lg:relative inset-y-0 left-0 z-40 w-64 bg-[var(--bg-secondary)] transform -translate-x-full lg:translate-x-0 border-r border-[var(--border-color)]">
+            <!-- O conteúdo da sidebar será injetado aqui pelo ui.js -->
+        </aside>
+
+        <!-- Conteúdo Principal -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Header com o botão que tem o ID correto -->
+            <header class="sticky top-0 z-20 bg-[var(--bg-secondary)]/80 backdrop-blur-sm border-b border-[var(--border-color)]">
+                <div class="container mx-auto px-4">
+                    <div class="flex items-center justify-between h-16">
+                        <div class="flex items-center">
+                            <button id="open-sidebar-btn" class="lg:hidden text-[var(--text-primary)] mr-4">
+                                <i data-lucide="menu" class="w-6 h-6"></i>
+                            </button>
+                            <h1 id="header-title" class="text-xl font-bold text-[var(--text-primary)]"></h1>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Área de Conteúdo Dinâmico -->
+            <main id="app-content" class="flex-1 overflow-y-auto">
+                <!-- Loader inicial -->
+                <div class="flex items-center justify-center h-full">
+                    <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 animate-spin" style="border-top-color: var(--accent-color);"></div>
+                </div>
+            </main>
+        </div>
+    </div>
+    
+    <!-- Navegação Inferior (Mobile) com o ID correto -->
+    <nav id="bottom-nav" class="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-[var(--bg-secondary)] border-t border-[var(--border-color)] flex justify-around items-center z-30">
+        <!-- O conteúdo da navegação inferior será injetado aqui pelo ui.js -->
+    </nav>
+    
+    <!-- Módulo principal da aplicação -->
+    <script type="module" src="app.js"></script>
+</body>
+</html><!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vigilav</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-[var(--bg-primary)] text-[var(--text-primary)]">
+    <div class="flex h-screen">
+        <!-- Overlay para a sidebar no mobile -->
+        <div id="sidebar-overlay" class="sidebar-overlay fixed inset-0 bg-black/60 z-30 opacity-0 pointer-events-none lg:hidden"></div>
+
+        <!-- Sidebar com o ID correto -->
+        <aside id="sidebar" class="sidebar fixed lg:relative inset-y-0 left-0 z-40 w-64 bg-[var(--bg-secondary)] transform -translate-x-full lg:translate-x-0 border-r border-[var(--border-color)]">
+            <!-- O conteúdo da sidebar será injetado aqui pelo ui.js -->
+        </aside>
+
+        <!-- Conteúdo Principal -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Header com o botão que tem o ID correto -->
+            <header class="sticky top-0 z-20 bg-[var(--bg-secondary)]/80 backdrop-blur-sm border-b border-[var(--border-color)]">
+                <div class="container mx-auto px-4">
+                    <div class="flex items-center justify-between h-16">
+                        <div class="flex items-center">
+                            <button id="open-sidebar-btn" class="lg:hidden text-[var(--text-primary)] mr-4">
+                                <i data-lucide="menu" class="w-6 h-6"></i>
+                            </button>
+                            <h1 id="header-title" class="text-xl font-bold text-[var(--text-primary)]"></h1>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Área de Conteúdo Dinâmico -->
+            <main id="app-content" class="flex-1 overflow-y-auto">
+                <!-- Loader inicial -->
+                <div class="flex items-center justify-center h-full">
+                    <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 animate-spin" style="border-top-color: var(--accent-color);"></div>
+                </div>
+            </main>
+        </div>
+    </div>
+    
+    <!-- Navegação Inferior (Mobile) com o ID correto -->
+    <nav id="bottom-nav" class="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-[var(--bg-secondary)] border-t border-[var(--border-color)] flex justify-around items-center z-30">
+        <!-- O conteúdo da navegação inferior será injetado aqui pelo ui.js -->
+    </nav>
+    
+    <!-- Módulo principal da aplicação -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>

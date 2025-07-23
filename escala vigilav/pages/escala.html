@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vigilav - Gestão de Escalas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://unpkg.com/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.js"></script>
+    <style>
+        :root {
+            --bg-primary-light: #f0f4f8; --bg-secondary-light: #ffffff; --text-primary-light: #1e293b; --text-secondary-light: #64748b; --border-color-light: #e2e8f0; --accent-color: #14b8a6; --accent-hover: #0d9488;
+        }
+        [data-theme="dark"] {
+            --bg-primary-dark: #0f172a; --bg-secondary-dark: #1e293b; --text-primary-dark: #e2e8f0; --text-secondary-dark: #94a3b8; --border-color-dark: #334155;
+        }
+        [data-theme="light"] { --bg-primary: var(--bg-primary-light); --bg-secondary: var(--bg-secondary-light); --text-primary: var(--text-primary-light); --text-secondary: var(--text-secondary-light); --border-color: var(--border-color-light); }
+        [data-theme="dark"] { --bg-primary: var(--bg-primary-dark); --bg-secondary: var(--bg-secondary-dark); --text-primary: var(--text-primary-dark); --text-secondary: var(--text-secondary-dark); --border-color: var(--border-color-dark); }
+        body { font-family: 'Sora', sans-serif; background-color: var(--bg-primary); color: var(--text-secondary); }
+        .sidebar { transition: transform 0.3s ease-in-out; }
+        .sidebar-overlay { transition: opacity 0.3s ease-in-out; }
+        .dropdown { display: none; }
+        .dropdown.open { display: block; animation: fadeInDown 0.2s ease-out; }
+        @keyframes fadeInDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Estilos específicos da página de escala */
+        .modal { display: none; opacity: 0; transition: opacity 0.2s ease-in-out; }
+        .modal.active { display: flex; opacity: 1; }
+        .modal-content { transform: scale(0.95); transition: transform 0.2s ease-in-out; background-color: var(--bg-secondary); border: 1px solid var(--border-color); }
+        .modal.active .modal-content { transform: scale(1); }
+        .btn { transition: all 0.2s ease-in-out; } .btn:active { transform: scale(0.95); }
+        .tab { transition: all 0.2s ease-in-out; border-bottom: 2px solid transparent; }
+        .tab.active { background-color: var(--bg-secondary); color: var(--text-primary); border-color: var(--accent-color); }
+        .day-selector button.selected { background-color: var(--accent-color); color: white; }
+        .editable-container:hover .edit-icon { visibility: visible; opacity: 0.7; } .edit-icon { visibility: hidden; }
+        #location-tabs { cursor: grab; } #location-tabs:active { cursor: grabbing; }
+        .day-selector { flex-wrap: nowrap; } .schedule-select { min-width: 130px; }
+    </style>
+</head>
+<body class="antialiased">
+    <div class="flex h-screen">
+        <!-- Navegação Lateral (Sidebar) - Visível em Desktop -->
+        <div id="sidebar-overlay" class="sidebar-overlay fixed inset-0 bg-black/60 z-30 opacity-0 pointer-events-none lg:hidden"></div>
+        <aside id="sidebar" class="sidebar fixed lg:relative inset-y-0 left-0 z-40 w-64 bg-[var(--bg-secondary)] transform -translate-x-full lg:translate-x-0">
+            <!-- Conteúdo da Sidebar... -->
+            <div class="flex items-center justify-center p-4 h-16 border-b border-[var(--border-color)]">
+                <img id="logo-sidebar" src="vigilav-white.png" class="h-10" alt="Logo">
+                <span class="ml-3 text-xl font-bold text-[var(--text-primary)]">Vigilav</span>
+            </div>
+            <nav class="p-4">
+                <a href="index.html" class="flex items-center mt-2 px-4 py-2.5 rounded-lg text-[var(--text-primary)] hover:bg-[var(--bg-primary)] font-semibold"><i data-lucide="layout-dashboard" class="w-5 h-5 mr-3 text-[var(--accent-color)]"></i> Dashboard</a>
+                <a href="escala.html" class="flex items-center px-4 py-2.5 rounded-lg text-white bg-[var(--accent-color)] font-semibold"><i data-lucide="calendar-days" class="w-5 h-5 mr-3"></i> Escalas</a>
+                <a href="ronda.html" class="flex items-center mt-2 px-4 py-2.5 rounded-lg text-[var(--text-primary)] hover:bg-[var(--bg-primary)] font-semibold"><i data-lucide="scan-line" class="w-5 h-5 mr-3 text-[var(--accent-color)]"></i> Rondas</a>
+            </nav>
+            <div class="absolute bottom-0 w-full left-0 p-4 border-t border-[var(--border-color)]"><a href="login.html" class="flex items-center text-[var(--text-secondary)] hover:text-red-500"><i data-lucide="log-out" class="w-5 h-5 mr-3"></i> Sair</a></div>
+        </aside>
+
+        <!-- Conteúdo Principal -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Header Fixo -->
+            <header class="sticky top-0 z-20 bg-[var(--bg-secondary)]/80 backdrop-blur-sm border-b border-[var(--border-color)]">
+                <div class="container mx-auto px-4">
+                    <div class="flex items-center justify-between h-16">
+                        <div class="flex items-center">
+                            <button id="open-sidebar-btn" class="lg:hidden text-[var(--text-primary)]"><i data-lucide="menu" class="w-6 h-6"></i></button>
+                            <h1 class="text-xl font-bold text-[var(--text-primary)] ml-4 lg:ml-0">Gestão de Escalas</h1>
+                        </div>
+                         <!-- Ações da Página -->
+                        <div class="flex items-center gap-2">
+                             <div class="hidden sm:flex items-center gap-2">
+                                <button id="manageGuardsBtn" class="flex items-center gap-2 p-2 rounded-lg text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--bg-primary)]"><i data-lucide="user-round" class="w-5 h-5"></i><span>Vigias</span></button>
+                                <button id="addLocationBtn" class="flex items-center gap-2 p-2 rounded-lg text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--bg-primary)]"><i data-lucide="plus-circle" class="w-5 h-5"></i><span>Local</span></button>
+                            </div>
+                            <div class="relative">
+                                <button id="actions-menu-btn" class="p-2 rounded-full text-[var(--text-primary)] hover:bg-[var(--bg-primary)]"><i data-lucide="more-vertical" class="w-5 h-5"></i></button>
+                                <div id="actions-dropdown" class="dropdown absolute right-0 mt-2 w-56 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl">
+                                    <!-- Ações do Menu Dropdown -->
+                                    <div class="p-1">
+                                        <a href="#" id="loadPreviousBtn" class="flex items-center w-full px-3 py-2 text-sm rounded-md text-[var(--text-primary)] hover:bg-[var(--bg-primary)]"><i data-lucide="copy-check" class="w-4 h-4 mr-3"></i>Replicar Anterior</a>
+                                        <div class="my-1 border-t border-[var(--border-color)]"></div>
+                                        <a href="#" id="exportPdfBtn" class="flex items-center w-full px-3 py-2 text-sm rounded-md text-[var(--text-primary)] hover:bg-[var(--bg-primary)]"><i data-lucide="file-text" class="w-4 h-4 mr-3 text-red-500"></i>Exportar PDF</a>
+                                        <div class="my-1 border-t border-[var(--border-color)]"></div>
+                                        <a href="#" id="saveDataBtn" class="flex items-center w-full px-3 py-2 text-sm rounded-md text-[var(--text-primary)] hover:bg-[var(--bg-primary)]"><i data-lucide="download" class="w-4 h-4 mr-3"></i>Salvar Backup</a>
+                                        <a href="#" id="loadDataBtn" class="flex items-center w-full px-3 py-2 text-sm rounded-md text-[var(--text-primary)] hover:bg-[var(--bg-primary)]"><i data-lucide="upload" class="w-4 h-4 mr-3"></i>Carregar Backup</a>
+                                        <div class="my-1 border-t border-[var(--border-color)]"></div>
+                                        <a href="#" id="theme-toggle-menu-item" class="flex items-center w-full px-3 py-2 text-sm rounded-md text-[var(--text-primary)] hover:bg-[var(--bg-primary)]"><span id="theme-icon-container" class="w-4 h-4 mr-3"></span><span id="theme-text"></span></a>
+                                    </div>
+                                </div>
+                            </div>
+                            <input type="file" id="fileInput" class="hidden" accept=".json">
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Área de Conteúdo da Escala -->
+            <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-8">
+                <!-- Seletor de Semana -->
+                 <div class="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
+                    <div class="flex items-center bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-full p-1">
+                        <button id="prevWeekBtn" class="btn p-2 rounded-full hover:bg-[var(--bg-primary)]"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+                        <input type="date" id="weekPicker" class="bg-transparent border-none p-1 sm:p-2 focus:ring-0 text-[var(--text-primary)]">
+                        <button id="nextWeekBtn" class="btn p-2 rounded-full hover:bg-[var(--bg-primary)]"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+                    </div>
+                    <span id="weekRange" class="text-sm text-[var(--text-secondary)]"></span>
+                </div>
+
+                <!-- Abas de Localização -->
+                <div id="location-tabs" class="flex items-center gap-2 mb-4 border-b border-[var(--border-color)] overflow-x-auto pb-2"></div>
+                
+                <!-- Container da Escala -->
+                <div id="schedule-container" class="space-y-8"></div>
+            </main>
+        </div>
+    </div>
+    
+    <!-- Modais (o código dos modais permanece o mesmo) -->
+    <!-- ... Cole aqui TODOS os divs de modal do seu arquivo original ... -->
+    <div id="guardsModal" class="modal fixed inset-0 bg-black/70 backdrop-blur-sm items-center justify-center z-50 p-4"><div class="modal-content relative rounded-2xl shadow-2xl p-6 w-full max-w-md"><h3 class="text-xl font-bold mb-4 text-[var(--text-primary)] flex items-center gap-2"><i data-lucide="user-round"></i>Gerenciar Vigias</h3><form id="addGuardForm" class="flex gap-2 mb-4"><input type="text" id="guardName" placeholder="Nome do Vigia" class="w-full p-2 bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg" required><button type="submit" class="btn bg-[var(--accent-color)] hover:bg-[var(--accent-hover)] text-white font-bold p-2 rounded-lg"><i data-lucide="plus"></i></button></form><div id="guardsList" class="space-y-2 max-h-60 overflow-y-auto"></div><button onclick="closeModal('guardsModal')" class="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><i data-lucide="x"></i></button></div></div>
+    <!-- (Adicione os outros modais aqui: automation, loadPrevious, namePrompt, confirm, alert, exportPdf) -->
+
+    <!-- Navegação Inferior (Mobile) -->
+    <nav class="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-[var(--bg-secondary)] border-t border-[var(--border-color)] flex justify-around items-center z-30">
+        <a href="index.html" class="flex flex-col items-center justify-center text-[var(--text-secondary)]"><i data-lucide="layout-dashboard" class="w-6 h-6"></i><span class="text-xs mt-1">Início</span></a>
+        <a href="escala.html" class="flex flex-col items-center justify-center text-[var(--accent-color)]"><i data-lucide="calendar-days" class="w-6 h-6"></i><span class="text-xs mt-1">Escalas</span></a>
+        <a href="ronda.html" class="flex flex-col items-center justify-center text-[var(--text-secondary)]"><i data-lucide="scan-line" class="w-6 h-6"></i><span class="text-xs mt-1">Rondas</span></a>
+        <a href="perfil.html" class="flex flex-col items-center justify-center text-[var(--text-secondary)]"><i data-lucide="user-round" class="w-6 h-6"></i><span class="text-xs mt-1">Perfil</span></a>
+    </nav>
+    
+    <script>
+        // --- COLE AQUI O SCRIPT INTEIRO DO SEU 'escala.html' ANTIGO ---
+        // (O script que começa com: const APP_STORAGE_KEY = 'escala_app_v25'; ...)
+        
+        // --- ADICIONE ESTE NOVO BLOCO DE CÓDIGO NO FINAL DO SEU SCRIPT ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Lógica de navegação e tema (do novo template)
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            const openBtn = document.getElementById('open-sidebar-btn');
+            if (openBtn) openBtn.addEventListener('click', () => { sidebar.classList.remove('-translate-x-full'); overlay.classList.remove('opacity-0', 'pointer-events-none'); });
+            if (overlay) overlay.addEventListener('click', () => { sidebar.classList.add('-translate-x-full'); overlay.classList.add('opacity-0', 'pointer-events-none'); });
+            
+            const actionsMenuBtn = document.getElementById('actions-menu-btn');
+            const actionsDropdown = document.getElementById('actions-dropdown');
+            if(actionsMenuBtn) actionsMenuBtn.addEventListener('click', (e) => { e.stopPropagation(); actionsDropdown.classList.toggle('dropdown'); actionsDropdown.classList.toggle('open'); });
+            document.addEventListener('click', (e) => { if (actionsDropdown && !actionsMenuBtn.contains(e.target) && !actionsDropdown.contains(e.target)) { actionsDropdown.classList.remove('open'); actionsDropdown.classList.add('dropdown');} });
+
+            // Lógica de tema atualizada para os novos botões
+            const logo = document.getElementById('logo-sidebar');
+            const themeMenuItem = document.getElementById('theme-toggle-menu-item');
+            const themeIconContainer = document.getElementById('theme-icon-container');
+            const themeText = document.getElementById('theme-text');
+            
+            const originalUpdateThemeUI = window.updateThemeUI;
+            window.updateThemeUI = function(theme) {
+                if(originalUpdateThemeUI) originalUpdateThemeUI(theme); // Chama a função original se existir
+
+                // Atualiza os novos elementos
+                const isDark = theme === 'dark';
+                if(logo) logo.src = isDark ? 'vigilav-white.png' : 'vigilav-black.png';
+                if(themeIconContainer) themeIconContainer.innerHTML = isDark ? '<i data-lucide="sun"></i>' : '<i data-lucide="moon"></i>';
+                if(themeText) themeText.textContent = isDark ? 'Tema Claro' : 'Tema Escuro';
+                lucide.createIcons();
+            }
+            if(themeMenuItem) themeMenuItem.addEventListener('click', (e) => { e.preventDefault(); window.toggleTheme(); });
+
+            // Inicializa o tema na carga da página
+            const THEME_STORAGE_KEY = 'escala_app_theme';
+            window.updateThemeUI(localStorage.getItem(THEME_STORAGE_KEY) || 'dark');
+        });
+    </script>
+</body>
+</html>

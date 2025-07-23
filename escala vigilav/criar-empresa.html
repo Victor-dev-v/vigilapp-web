@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vigilav - Crie sua Empresa</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="auth-page">
+    <div class="min-h-screen flex flex-col items-center justify-center p-4">
+        <div class="w-full max-w-md text-center">
+            <div class="mb-10">
+                <h1 class="text-3xl sm:text-4xl font-bold text-[var(--text-primary)] mt-4 animated-element animate-down">Um último passo...</h1>
+                <p class="text-[var(--text-secondary)] animated-element animate-down delay-1">Informe os dados da sua empresa para começar.</p>
+            </div>
+            <div class="bg-[var(--bg-secondary)] p-8 md:p-10 rounded-2xl shadow-2xl animated-element animate-up delay-2">
+                <form id="createCompanyForm" class="space-y-6">
+                    <div id="form-message" class="hidden text-sm rounded-lg p-3"></div>
+                    <div class="text-left">
+                        <label for="companyName" class="text-sm font-medium text-[var(--text-primary)]">Nome da Empresa</label>
+                        <input type="text" id="companyName" class="w-full mt-1 p-3 bg-[var(--bg-primary)] border-2 rounded-lg outline-none transition-all border-[var(--border-color)] text-[var(--text-primary)] focus:border-[var(--accent-color)]" required />
+                    </div>
+                    <div class="text-left">
+                        <label for="companyCnpj" class="text-sm font-medium text-[var(--text-primary)]">CNPJ (opcional)</label>
+                        <input type="text" id="companyCnpj" class="w-full mt-1 p-3 bg-[var(--bg-primary)] border-2 rounded-lg outline-none transition-all border-[var(--border-color)] text-[var(--text-primary)] focus:border-[var(--accent-color)]" />
+                    </div>
+                    <button type="submit" class="w-full !mt-8 py-3 px-4 text-lg font-bold text-white bg-[var(--accent-color)] rounded-lg hover:bg-[var(--accent-hover)] transition-all transform hover:scale-105 active:scale-100 shadow-lg shadow-[var(--accent-color)]/20">
+                        Finalizar e Criar Empresa
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { app } from './js/firebase.js';
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
+        import { getFirestore, doc, addDoc, collection, writeBatch, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+
+        const form = document.getElementById('createCompanyForm');
+        const messageEl = document.getElementById('form-message');
+        const auth = getAuth(app);
+
+        // Proteção de rota: só permite acesso se o usuário estiver logado
+        onAuthStateChanged(auth, (user) => {
+            if (!user) {
+                window.location.replace('/login.html');
+            }
+        });
+        
+        function showMessage(text, type = 'error') {
+            messageEl.textContent = text;
+            messageEl.className = `text-sm rounded-lg p-3 ${type === 'error' ? 'bg-red-500/10 border border-red-500/30 text-red-400' : 'bg-green-500/10 border border-green-500/30 text-green-400'}`;
+            messageEl.classList.remove('hidden');
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const currentUser = auth.currentUser;
+            if (!currentUser) {
+                showMessage('Erro: Usuário não autenticado.');
+                return;
+            }
+
+            const companyName = document.getElementById('companyName').value.trim();
+            const companyCnpj = document.getElementById('companyCnpj').value.trim();
+            const submitButton = e.currentTarget.querySelector('button[type="submit"]');
+
+            if (!companyName) {
+                showMessage('O nome da empresa é obrigatório.');
+                return;
+            }
+
+            submitButton.disabled = true;
+            submitButton.innerHTML = 'Criando...';
+
+            try {
+                const db = getFirestore(app);
+                const batch = writeBatch(db);
+
+                // 1. Cria o documento da empresa na coleção 'companies_v1'
+                const companyData = {
+                    name: companyName,
+                    cnpj: companyCnpj,
+                    ownerId: currentUser.uid,
+                    createdAt: serverTimestamp(),
+                    plan: 'free' // Define o plano inicial
+                };
+                const companyDocRef = await addDoc(collection(db, "companies_v1"), companyData);
+
+                // 2. Cria o perfil de trabalho para o usuário
+                // Este perfil o conecta à empresa que acabou de ser criada
+                const workProfileRef = doc(db, `users_v1/${currentUser.uid}/work_profiles`, companyDocRef.id);
+                batch.set(workProfileRef, {
+                    companyId: companyDocRef.id,
+                    companyName: companyName,
+                    role: 'admin', // O criador é sempre admin
+                    status: 'active',
+                    joinedAt: serverTimestamp()
+                });
+
+                // 3. Atualiza o documento do usuário com o perfil ativo
+                const userDocRef = doc(db, "users_v1", currentUser.uid);
+                batch.update(userDocRef, {
+                    activeCompanyId: companyDocRef.id,
+                    activeRole: 'admin'
+                });
+
+                // Executa todas as operações de uma vez
+                await batch.commit();
+
+                // Redireciona para o dashboard principal
+                window.location.replace('/');
+
+            } catch (error) {
+                console.error("Erro ao criar empresa:", error);
+                showMessage('Ocorreu um erro inesperado. Tente novamente.');
+                submitButton.disabled = false;
+                submitButton.innerHTML = 'Finalizar e Criar Empresa';
+            }
+        });
+    </script>
+</body>
+</html>

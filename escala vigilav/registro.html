@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vigilav - Criar Conta</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="auth-page">
+    <div class="min-h-screen flex flex-col items-center justify-center p-4">
+        <a href="login.html" title="Voltar" class="absolute top-5 left-5 p-2.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center text-white/80">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        <button id="theme-toggle-btn" class="absolute top-5 right-5 p-2.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors"></button>
+        <div class="w-full max-w-sm md:max-w-md text-center">
+            <div class="mb-10">
+                <h1 class="text-3xl sm:text-4xl font-bold text-[var(--text-primary)] mt-4 animated-element animate-down">Crie sua Conta</h1>
+                <p class="text-[var(--text-secondary)] animated-element animate-down delay-1">Rápido e fácil para começar a proteger.</p>
+            </div>
+            <div class="bg-[var(--bg-secondary)] p-8 md:p-10 rounded-2xl shadow-2xl animated-element animate-up delay-2">
+                <form id="registerForm" class="space-y-6">
+                    <div id="register-message" class="hidden text-sm rounded-lg p-3"></div>
+                    <div class="text-left">
+                        <label for="username" class="text-sm font-medium text-[var(--text-primary)]">Seu Nome Completo</label>
+                        <input type="text" id="username" class="w-full mt-1 p-3 bg-[var(--bg-primary)] border-2 rounded-lg outline-none transition-all border-[var(--border-color)] text-[var(--text-primary)] focus:border-[var(--accent-color)]" required />
+                    </div>
+                    <div class="text-left">
+                        <label for="email" class="text-sm font-medium text-[var(--text-primary)]">E-mail</label>
+                        <input type="email" id="email" class="w-full mt-1 p-3 bg-[var(--bg-primary)] border-2 rounded-lg outline-none transition-all border-[var(--border-color)] text-[var(--text-primary)] focus:border-[var(--accent-color)]" required />
+                    </div>
+                    <div class="text-left">
+                        <label for="password" class="text-sm font-medium text-[var(--text-primary)]">Senha (mín. 6 caracteres)</label>
+                        <input type="password" id="password" class="w-full mt-1 p-3 bg-[var(--bg-primary)] border-2 rounded-lg outline-none transition-all border-[var(--border-color)] text-[var(--text-primary)] focus:border-[var(--accent-color)]" required minlength="6"/>
+                    </div>
+                    <p class="text-xs text-[var(--text-secondary)] !mt-4">Ao se registrar, você concorda com nossos <a href="#" class="underline">Termos de Serviço</a>.</p>
+                    <button type="submit" class="w-full py-3 px-4 text-lg font-bold text-white bg-[var(--accent-color)] rounded-lg hover:bg-[var(--accent-hover)] transition-all transform hover:scale-105 active:scale-100 shadow-lg shadow-[var(--accent-color)]/20">Criar Conta</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script type="module">
+        import { app } from './js/firebase.js';
+        import { registerUser } from './js/auth.js'; 
+
+        // Lógica do Tema (idêntica ao login.html)
+        const THEME_STORAGE_KEY = 'vigilav_theme';
+        const themeToggleBtn = document.getElementById('theme-toggle-btn');
+        function updateThemeUI(theme) { /* ...código do tema... */ }
+        function initializeTheme() { /* ...código do tema... */ }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeTheme();
+            lucide.createIcons();
+
+            const registerForm = document.getElementById('registerForm');
+            const messageEl = document.getElementById('register-message');
+            
+            registerForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const username = e.target.username.value.trim();
+                const email = e.target.email.value.trim();
+                const password = e.target.password.value;
+                // ... lógica de submit, sem o 'objective' ...
+                const result = await registerUser({ username, email, password });
+                if (result.success) {
+                    window.location.href = '/';
+                } else {
+                    // ... mostrar erro ...
+                }
+            });
+        });
+
+        // Cole aqui as funções completas de tema e submit do seu arquivo anterior.
+        // O código foi omitido para brevidade, mas a estrutura é essa.
+    </script>
+</body>
+</html>

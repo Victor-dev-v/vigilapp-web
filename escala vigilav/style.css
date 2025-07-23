@@ -1,0 +1,159 @@
+/* style.css */
+
+:root {
+    /* Cores de Acento */
+    --accent-color: #14b8a6; 
+    --accent-hover: #0d9488;
+    
+    /* Tema Claro */
+    --bg-primary-light: #f0f4f8; 
+    --bg-secondary-light: #ffffff;
+    --text-primary-light: #1e293b; 
+    --text-secondary-light: #64748b;
+    --border-color-light: #e2e8f0; 
+    --gradient-start-light: #e0e7ff;
+    --gradient-mid-light: #f0f4f8; 
+    --gradient-end-light: #dbeafe;
+    
+    /* Tema Escuro */
+    --bg-primary-dark: #0f172a; 
+    --bg-secondary-dark: #1e293b;
+    --text-primary-dark: #e2e8f0; 
+    --text-secondary-dark: #94a3b8;
+    --border-color-dark: #334155; 
+    --gradient-start-dark: #0f172a;
+    --gradient-mid-dark: #1c1917; 
+    --gradient-end-dark: #1e293b;
+}
+
+[data-theme="light"] {
+    --bg-primary: var(--bg-primary-light); 
+    --bg-secondary: var(--bg-secondary-light);
+    --text-primary: var(--text-primary-light); 
+    --text-secondary: var(--text-secondary-light);
+    --border-color: var(--border-color-light); 
+    --gradient-start: var(--gradient-start-light);
+    --gradient-mid: var(--gradient-mid-light); 
+    --gradient-end: var(--gradient-end-light);
+}
+[data-theme="dark"] {
+    --bg-primary: var(--bg-primary-dark); 
+    --bg-secondary: var(--bg-secondary-dark);
+    --text-primary: var(--text-primary-dark); 
+    --text-secondary: var(--text-secondary-dark);
+    --border-color: var(--border-color-dark); 
+    --gradient-start: var(--gradient-start-dark);
+    --gradient-mid: var(--gradient-mid-dark); 
+    --gradient-end: var(--gradient-end-dark);
+}
+
+body { 
+    font-family: 'Sora', sans-serif; 
+    background-color: var(--bg-primary); 
+    color: var(--text-secondary);
+}
+
+body.auth-page { 
+    background: linear-gradient(-45deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end), var(--gradient-start));
+    background-size: 400% 400%; 
+    animation: gradientBG 25s ease infinite;
+    transition: background 0.5s ease-in-out;
+    overflow-x: hidden;
+}
+@keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+
+/* Animações e Views de Autenticação */
+@keyframes fadeInDown { from { opacity: 0; transform: translate3d(0, -20px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
+@keyframes fadeInUp { from { opacity: 0; transform: translate3d(0, 20px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
+.animated-element { opacity: 0; animation-fill-mode: forwards; }
+.animate-down { animation-name: fadeInDown; animation-duration: 0.8s; }
+.animate-up { animation-name: fadeInUp; animation-duration: 0.8s; }
+.delay-1 { animation-delay: 0.2s; } .delay-2 { animation-delay: 0.4s; } .delay-3 { animation-delay: 0.6s; }
+.auth-view { display: none; animation: fadeInUp 0.5s ease-in-out; }
+.auth-view.active { display: block; }
+
+/* Correção para Autocomplete do Navegador */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px var(--bg-primary) inset !important;
+    -webkit-text-fill-color: var(--text-primary) !important;
+    caret-color: var(--text-primary) !important;
+}
+
+/* Estilos da Navegação Principal */
+.sidebar, .bottom-nav { transition: transform 0.3s ease-in-out; }
+.sidebar-overlay { transition: opacity 0.3s ease-in-out; }
+.nav-link.active {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-weight: 600;
+}
+.bottom-nav .nav-link.active {
+    color: var(--accent-color);
+    background-color: transparent;
+}
+
+/* **NOVO**: Estilos para campos de formulário no perfil */
+.profile-input {
+    width: 100%;
+    transition: all 0.2s ease-in-out;
+    outline: none;
+}
+
+/* Estilo para MODO DE VISUALIZAÇÃO (padrão) */
+.profile-input.view-mode {
+    background-color: transparent !important;
+    border: 2px solid transparent !important;
+    padding: 0.75rem 0; /* Espaçamento vertical, sem espaçamento lateral para alinhar */
+    color: var(--text-secondary) !important;
+    -webkit-text-fill-color: var(--text-secondary) !important;
+    cursor: default;
+    box-shadow: none;
+}
+textarea.profile-input.view-mode {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+}
+
+/* Estilo para MODO DE EDIÇÃO */
+.profile-input.edit-mode {
+    background-color: var(--bg-primary) !important;
+    border: 2px solid var(--border-color) !important;
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    color: var(--text-primary) !important;
+    -webkit-text-fill-color: var(--text-primary) !important;
+}
+textarea.profile-input.edit-mode { cursor: text; }
+select.profile-input.edit-mode { cursor: pointer; }
+
+/* Efeito de FOCO apenas no modo de edição */
+.profile-input.edit-mode:focus {
+    border-color: var(--accent-color) !important;
+    box-shadow: 0 0 0 3px var(--accent-color-transparent, rgba(20, 184, 166, 0.2));
+}
+
+/* Remove a seta do select no modo de visualização */
+select.profile-input.view-mode {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+}
+
+/* Garante que o input do nome se comporte bem em ambos os modos */
+#displayNameInput.view-mode {
+    padding: 0;
+    color: var(--text-primary) !important;
+    -webkit-text-fill-color: var(--text-primary) !important;
+    font-size: 1.875rem; /* text-3xl */
+    line-height: 2.25rem;
+    font-weight: 700;
+}
+#displayNameInput.edit-mode {
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+    font-weight: 700;
+    padding: 0.5rem;
+}

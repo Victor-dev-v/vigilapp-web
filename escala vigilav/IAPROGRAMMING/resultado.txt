@@ -1,0 +1,989 @@
+﻿
+  {
+  "projects": {
+    "default": "vigilav-app"
+  }
+}
+// js/app.js
+
+import { checkAuthState, logout } from './js/auth.js';
+import { initUI } from './js/ui.js';
+import { initRouter } from './js/router.js';
+import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+import { app } from './js/firebase.js';
+
+const appContent = document.getElementById('app-content');
+const headerTitle = document.getElementById('header-title');
+let currentUserData = null; // Vamos guardar os dados do usuÃ¡rio aqui para fÃ¡cil acesso
+
+// --- FUNÃ‡Ã•ES DE RENDERIZAÃ‡ÃƒO DE PÃGINAS ---
+
+// FunÃ§Ã£o genÃ©rica para pÃ¡ginas em construÃ§Ã£o
+function renderPlaceholder(title) {
+    if (headerTitle) headerTitle.textContent = title;
+    appContent.innerHTML = `
+        <div class="p-8">
+            <h1 class="text-3xl font-bold text-[var(--text-primary)]">${title}</h1>
+            <p class="mt-4 text-[var(--text-secondary)]">PÃ¡gina em construÃ§Ã£o...</p>
+        </div>
+    `;
+}
+
+// **NOVO**: FunÃ§Ã£o especÃ­fica para renderizar a pÃ¡gina de perfil
+function renderPerfil() {
+    if (headerTitle) headerTitle.textContent = 'Meu Perfil';
+    
+    // Usa os dados do usuÃ¡rio que jÃ¡ carregamos
+    if (!currentUserData) {
+        appContent.innerHTML = `<p class="p-8 text-red-500">Erro: NÃ£o foi possÃ­vel carregar os dados do usuÃ¡rio.</p>`;
+        return;
+    }
+
+    appContent.innerHTML = `
+        <div class="p-4 sm:p-8 max-w-2xl mx-auto">
+            <div class="bg-[var(--bg-secondary)] p-6 sm:p-8 rounded-lg shadow-lg">
+                <div class="flex flex-col sm:flex-row items-center gap-6">
+                    <!-- Placeholder para a foto do perfil -->
+                    <div class="w-24 h-24 rounded-full bg-[var(--bg-primary)] flex items-center justify-center">
+                        <i data-lucide="user" class="w-12 h-12 text-[var(--text-secondary)]"></i>
+                    </div>
+                    <div class="text-center sm:text-left">
+                        <h1 class="text-2xl sm:text-3xl font-bold text-[var(--text-primary)]">${currentUserData.displayName}</h1>
+                        <p class="text-md text-[var(--text-secondary)] mt-1">${currentUserData.email}</p>
+                    </div>
+                </div>
+
+                <div class="border-t border-[var(--border-color)] my-8"></div>
+
+                <div>
+                    <h2 class="text-xl font-bold text-[var(--text-primary)]">InformaÃ§Ãµes da Conta</h2>
+                    <div class="mt-4 space-y-2">
+                        <p class="text-[var(--text-secondary)]"><strong>Nome de usuÃ¡rio:</strong> @${currentUserData.username}</p>
+                        <p class="text-[var(--text-secondary)]"><strong>Membro desde:</strong> ${new Date(currentUserData.createdAt.seconds * 1000).toLocaleDateString()}</p>
+                        <p class="text-[var(--text-secondary)]"><strong>ID do UsuÃ¡rio:</strong> <span class="font-mono text-xs">${currentUserData.uid}</span></p>
+                    </div>
+                </div>
+                
+                <div class="border-t border-[var(--border-color)] my-8"></div>
+
+                <div class="flex justify-end">
+                    <button id="logout-btn" class="flex items-center gap-2 py-2 px-4 bg-red-600/10 border border-red-500/30 text-red-400 hover:bg-red-600/20 rounded-lg transition-colors">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                        Sair da Conta
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Cria o Ã­cone do usuÃ¡rio
+    lucide.createIcons();
+
+    // Adiciona o evento de clique ao botÃ£o de logout
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+        await logout();
+        window.location.replace('/login.html');
+    });
+}
+
+
+// Mapeamento de rotas para as funÃ§Ãµes que renderizam as pÃ¡ginas
+const pageRenderers = {
+    '/dashboard': () => renderPlaceholder('Dashboard'),
+    '/rondas': () => renderPlaceholder('Rondas'),
+    '/escalas': () => renderPlaceholder('Escalas'),
+    '/historico': () => renderPlaceholder('HistÃ³rico'),
+    '/equipe': () => renderPlaceholder('Minha Equipe'),
+    '/perfil': renderPerfil, // **NOVO**: Aponta para a nossa nova funÃ§Ã£o
+    '/404': () => renderPlaceholder('PÃ¡gina nÃ£o encontrada'),
+};
+
+
+// --- FUNÃ‡ÃƒO PRINCIPAL ---
+async function main() {
+    const user = await checkAuthState();
+
+    if (user) {
+        // Busca os dados do usuÃ¡rio no Firestore UMA VEZ ao carregar o app
+        try {
+            const db = getFirestore(app);
+            const userDocSnap = await getDoc(doc(db, "users_v1", user.uid));
+            if (userDocSnap.exists()) {
+                currentUserData = userDocSnap.data(); // Armazena os dados globalmente
+            } else {
+                throw new Error("Perfil do usuÃ¡rio nÃ£o encontrado no Firestore.");
+            }
+        } catch (error) {
+            console.error("Falha ao carregar dados do usuÃ¡rio:", error);
+            appContent.innerHTML = `<p class="p-8 text-red-500">Erro crÃ­tico ao carregar seu perfil. Tente recarregar a pÃ¡gina.</p>`;
+            return;
+        }
+
+        // UsuÃ¡rio e dados carregados, agora construÃ­mos a UI
+        initUI();
+        
+        const routesWithRoot = {
+            '/': () => {
+                window.history.replaceState({}, '', '/dashboard');
+                pageRenderers['/dashboard']();
+            },
+            ...pageRenderers
+        };
+
+        initRouter(routesWithRoot);
+    } else {
+        // UsuÃ¡rio nÃ£o estÃ¡ logado
+        const publicPages = ['/login.html', '/registro.html'];
+        if (!publicPages.includes(window.location.pathname)) {
+            window.location.replace('/login.html');
+        }
+    }
+}
+
+// Inicia a aplicaÃ§Ã£o
+main();
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vigilav - Crie sua Empresa</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="auth-page">
+    <div class="min-h-screen flex flex-col items-center justify-center p-4">
+        <div class="w-full max-w-md text-center">
+            <div class="mb-10">
+                <h1 class="text-3xl sm:text-4xl font-bold text-[var(--text-primary)] mt-4 animated-element animate-down">Um Ãºltimo passo...</h1>
+                <p class="text-[var(--text-secondary)] animated-element animate-down delay-1">Informe os dados da sua empresa para comeÃ§ar.</p>
+            </div>
+            <div class="bg-[var(--bg-secondary)] p-8 md:p-10 rounded-2xl shadow-2xl animated-element animate-up delay-2">
+                <form id="createCompanyForm" class="space-y-6">
+                    <div id="form-message" class="hidden text-sm rounded-lg p-3"></div>
+                    <div class="text-left">
+                        <label for="companyName" class="text-sm font-medium text-[var(--text-primary)]">Nome da Empresa</label>
+                        <input type="text" id="companyName" class="w-full mt-1 p-3 bg-[var(--bg-primary)] border-2 rounded-lg outline-none transition-all border-[var(--border-color)] text-[var(--text-primary)] focus:border-[var(--accent-color)]" required />
+                    </div>
+                    <div class="text-left">
+                        <label for="companyCnpj" class="text-sm font-medium text-[var(--text-primary)]">CNPJ (opcional)</label>
+                        <input type="text" id="companyCnpj" class="w-full mt-1 p-3 bg-[var(--bg-primary)] border-2 rounded-lg outline-none transition-all border-[var(--border-color)] text-[var(--text-primary)] focus:border-[var(--accent-color)]" />
+                    </div>
+                    <button type="submit" class="w-full !mt-8 py-3 px-4 text-lg font-bold text-white bg-[var(--accent-color)] rounded-lg hover:bg-[var(--accent-hover)] transition-all transform hover:scale-105 active:scale-100 shadow-lg shadow-[var(--accent-color)]/20">
+                        Finalizar e Criar Empresa
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { app } from './js/firebase.js';
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
+        import { getFirestore, doc, addDoc, collection, writeBatch, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+
+        const form = document.getElementById('createCompanyForm');
+        const messageEl = document.getElementById('form-message');
+        const auth = getAuth(app);
+
+        // ProteÃ§Ã£o de rota: sÃ³ permite acesso se o usuÃ¡rio estiver logado
+        onAuthStateChanged(auth, (user) => {
+            if (!user) {
+                window.location.replace('/login.html');
+            }
+        });
+        
+        function showMessage(text, type = 'error') {
+            messageEl.textContent = text;
+            messageEl.className = `text-sm rounded-lg p-3 ${type === 'error' ? 'bg-red-500/10 border border-red-500/30 text-red-400' : 'bg-green-500/10 border border-green-500/30 text-green-400'}`;
+            messageEl.classList.remove('hidden');
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const currentUser = auth.currentUser;
+            if (!currentUser) {
+                showMessage('Erro: UsuÃ¡rio nÃ£o autenticado.');
+                return;
+            }
+
+            const companyName = document.getElementById('companyName').value.trim();
+            const companyCnpj = document.getElementById('companyCnpj').value.trim();
+            const submitButton = e.currentTarget.querySelector('button[type="submit"]');
+
+            if (!companyName) {
+                showMessage('O nome da empresa Ã© obrigatÃ³rio.');
+                return;
+            }
+
+            submitButton.disabled = true;
+            submitButton.innerHTML = 'Criando...';
+
+            try {
+                const db = getFirestore(app);
+                const batch = writeBatch(db);
+
+                // 1. Cria o documento da empresa na coleÃ§Ã£o 'companies_v1'
+                const companyData = {
+                    name: companyName,
+                    cnpj: companyCnpj,
+                    ownerId: currentUser.uid,
+                    createdAt: serverTimestamp(),
+                    plan: 'free' // Define o plano inicial
+                };
+                const companyDocRef = await addDoc(collection(db, "companies_v1"), companyData);
+
+                // 2. Cria o perfil de trabalho para o usuÃ¡rio
+                // Este perfil o conecta Ã  empresa que acabou de ser criada
+                const workProfileRef = doc(db, `users_v1/${currentUser.uid}/work_profiles`, companyDocRef.id);
+                batch.set(workProfileRef, {
+                    companyId: companyDocRef.id,
+                    companyName: companyName,
+                    role: 'admin', // O criador Ã© sempre admin
+                    status: 'active',
+                    joinedAt: serverTimestamp()
+                });
+
+                // 3. Atualiza o documento do usuÃ¡rio com o perfil ativo
+                const userDocRef = doc(db, "users_v1", currentUser.uid);
+                batch.update(userDocRef, {
+                    activeCompanyId: companyDocRef.id,
+                    activeRole: 'admin'
+                });
+
+                // Executa todas as operaÃ§Ãµes de uma vez
+                await batch.commit();
+
+                // Redireciona para o dashboard principal
+                window.location.replace('/');
+
+            } catch (error) {
+                console.error("Erro ao criar empresa:", error);
+                showMessage('Ocorreu um erro inesperado. Tente novamente.');
+                submitButton.disabled = false;
+                submitButton.innerHTML = 'Finalizar e Criar Empresa';
+            }
+        });
+    </script>
+</body>
+</html>
+[debug] [2025-07-22T23:01:27.063Z] ----------------------------------------------------------------------
+[debug] [2025-07-22T23:01:27.072Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\User\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start --only hosting
+[debug] [2025-07-22T23:01:27.074Z] CLI Version:   14.11.1
+[debug] [2025-07-22T23:01:27.075Z] Platform:      win32
+[debug] [2025-07-22T23:01:27.075Z] Node Version:  v22.17.0
+[debug] [2025-07-22T23:01:27.076Z] Time:          Tue Jul 22 2025 20:01:27 GMT-0300 (HorÃ¡rio PadrÃ£o de BrasÃ­lia)
+[debug] [2025-07-22T23:01:27.079Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-07-22T23:01:27.085Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2025-07-22T23:01:28.380Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-07-22T23:01:28.381Z] > authorizing via signed-in user (vigilav.mg@gmail.com)
+[info] i  emulators: Starting emulators: hosting {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: hosting"}}
+[debug] [2025-07-22T23:01:28.421Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2025-07-22T23:01:28.421Z] [hosting] Hosting Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2025-07-22T23:01:28.422Z] assigned listening specs for emulators {"user":{"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"hosting":[{"address":"127.0.0.1","family":"IPv4","port":5000}]},"metadata":{"message":"assigned listening specs for emulators"}}
+[debug] [2025-07-22T23:01:28.445Z] [hub] writing locator at C:\Users\User\AppData\Local\Temp\hub-vigilav-app.json
+[debug] [2025-07-22T23:01:28.492Z] Checked if tokens are valid: false, expires at: 1752635772622
+[debug] [2025-07-22T23:01:28.492Z] Checked if tokens are valid: false, expires at: 1752635772622
+[debug] [2025-07-22T23:01:28.493Z] > refreshing access token with scopes: []
+[debug] [2025-07-22T23:01:28.495Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2025-07-22T23:01:28.495Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-07-22T23:01:28.868Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
+[debug] [2025-07-22T23:01:28.869Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
+[debug] [2025-07-22T23:01:29.002Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2025-07-22T23:01:29.002Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-07-22T23:01:29.016Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/vigilav-app/sites 
+[debug] [2025-07-22T23:01:30.362Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/vigilav-app/sites 200
+[debug] [2025-07-22T23:01:30.363Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/vigilav-app/sites {"sites":[{"name":"projects/vigilav-app/sites/vigilav-app","defaultUrl":"https://vigilav-app.web.app","type":"DEFAULT_SITE"}]}
+[debug] [2025-07-22T23:01:30.363Z] Checked if tokens are valid: true, expires at: 1753228888003
+[debug] [2025-07-22T23:01:30.363Z] Checked if tokens are valid: true, expires at: 1753228888003
+[debug] [2025-07-22T23:01:30.364Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app/webApps/-/config [none]
+[debug] [2025-07-22T23:01:31.623Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app/webApps/-/config 200
+[debug] [2025-07-22T23:01:31.624Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app/webApps/-/config {"projectId":"vigilav-app","appId":"1:323672964643:web:a457717d8523e69ca07b96","storageBucket":"vigilav-app.firebasestorage.app","apiKey":"AIzaSyDANIRsjrUWo4YCWWR1y-pjnVgoHgBSS3s","authDomain":"vigilav-app.firebaseapp.com","messagingSenderId":"323672964643","measurementId":"G-3YB055L1RC"}
+[debug] [2025-07-22T23:01:31.634Z] Checked if tokens are valid: true, expires at: 1753228888003
+[debug] [2025-07-22T23:01:31.635Z] Checked if tokens are valid: true, expires at: 1753228888003
+[debug] [2025-07-22T23:01:31.636Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app [none]
+[debug] [2025-07-22T23:01:31.996Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app 200
+[debug] [2025-07-22T23:01:31.997Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/vigilav-app {"projectId":"vigilav-app","projectNumber":"323672964643","displayName":"vigilav-app","name":"projects/vigilav-app","resources":{"hostingSite":"vigilav-app"},"state":"ACTIVE","etag":"1_7232d178-70ce-4048-873b-f8c8749169e3"}
+[info] +  hosting[vigilav-app]: Local server: http://127.0.0.1:5000 {"metadata":{"emulator":{"name":"hosting"},"message":"Local server: \u001b[4m\u001b[1mhttp://127.0.0.1:5000\u001b[22m\u001b[24m"}}
+[warn] !  emulators: The Emulator UI is not starting, either because none of the running emulators have a UI component or the Emulator UI cannot determine the Project ID. Pass the --project flag to specify a project. {"metadata":{"emulator":{"name":"hub"},"message":"The Emulator UI is not starting, either because none of the running emulators have a UI component or the Emulator UI cannot determine the Project ID. Pass the --project flag to specify a project."}}
+[debug] [2025-07-22T23:01:32.198Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[info] 
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚ âœ”  All emulators ready! It is now safe to connect your app. â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚ Emulator â”‚ Host:Port      â”‚
+â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+â”‚ Hosting  â”‚ 127.0.0.1:5000 â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+  Emulator Hub host: 127.0.0.1 port: 4400
+  Other reserved ports: 4500
+
+Issues? Report them at https://github.com/firebase/firebase-tools/issues and attach the *-debug.log files.
+ 
+[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] "GET / HTTP/1.1" 200 - "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] \"GET / HTTP/1.1\" 200 - \"-\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] "GET /app.js HTTP/1.1" 200 - "http://127.0.0.1:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] \"GET /app.js HTTP/1.1\" 200 - \"http://127.0.0.1:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] "GET /style.css HTTP/1.1" 200 - "http://127.0.0.1:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] \"GET /style.css HTTP/1.1\" 200 - \"http://127.0.0.1:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] "GET /js/auth.js HTTP/1.1" 200 - "http://127.0.0.1:5000/app.js" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] \"GET /js/auth.js HTTP/1.1\" 200 - \"http://127.0.0.1:5000/app.js\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] "GET /js/ui.js HTTP/1.1" 200 - "http://127.0.0.1:5000/app.js" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] \"GET /js/ui.js HTTP/1.1\" 200 - \"http://127.0.0.1:5000/app.js\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] "GET /js/firebase.js HTTP/1.1" 200 973 "http://127.0.0.1:5000/app.js" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] \"GET /js/firebase.js HTTP/1.1\" 200 973 \"http://127.0.0.1:5000/app.js\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] "GET /js/router.js HTTP/1.1" 200 - "http://127.0.0.1:5000/app.js" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:52 +0000] \"GET /js/router.js HTTP/1.1\" 200 - \"http://127.0.0.1:5000/app.js\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:53 +0000] "GET /favicon.ico HTTP/1.1" 404 150 "http://127.0.0.1:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:53 +0000] \"GET /favicon.ico HTTP/1.1\" 404 150 \"http://127.0.0.1:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:53 +0000] "GET /manifest.json HTTP/1.1" 200 448 "http://127.0.0.1:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:53 +0000] \"GET /manifest.json HTTP/1.1\" 200 448 \"http://127.0.0.1:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:53 +0000] "GET /assets/icons/icon-192.png HTTP/1.1" 200 15046 "http://127.0.0.1:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:53 +0000] \"GET /assets/icons/icon-192.png HTTP/1.1\" 200 15046 \"http://127.0.0.1:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:53 +0000] "GET /login.html HTTP/1.1" 200 - "http://127.0.0.1:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:53 +0000] \"GET /login.html HTTP/1.1\" 200 - \"http://127.0.0.1:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:01:53 +0000] "GET /assets/vigilav-white.png HTTP/1.1" 200 1433035 "http://127.0.0.1:5000/login.html" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:01:53 +0000] \"GET /assets/vigilav-white.png HTTP/1.1\" 200 1433035 \"http://127.0.0.1:5000/login.html\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [22/Jul/2025:23:02:19 +0000] "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 187 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [22/Jul/2025:23:02:19 +0000] \"GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1\" 404 187 \"-\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "/service-worker.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "source": "/@(index.html|manifest.json)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "source": "/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=3600"
+          }
+        ]
+      }
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}
+{
+  "indexes": [],
+  "fieldOverrides": []
+}
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Regra Global: Permite leitura e escrita apenas para usuÃ¡rios autenticados.
+    // NinguÃ©m que nÃ£o esteja logado pode acessar o banco de dados.
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vigilav</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-[var(--bg-primary)] text-[var(--text-primary)]">
+    <div class="flex h-screen">
+        <!-- Overlay para a sidebar no mobile -->
+        <div id="sidebar-overlay" class="sidebar-overlay fixed inset-0 bg-black/60 z-30 opacity-0 pointer-events-none lg:hidden"></div>
+
+        <!-- Sidebar com o ID correto -->
+        <aside id="sidebar" class="sidebar fixed lg:relative inset-y-0 left-0 z-40 w-64 bg-[var(--bg-secondary)] transform -translate-x-full lg:translate-x-0 border-r border-[var(--border-color)]">
+            <!-- O conteÃºdo da sidebar serÃ¡ injetado aqui pelo ui.js -->
+        </aside>
+
+        <!-- ConteÃºdo Principal -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Header com o botÃ£o que tem o ID correto -->
+            <header class="sticky top-0 z-20 bg-[var(--bg-secondary)]/80 backdrop-blur-sm border-b border-[var(--border-color)]">
+                <div class="container mx-auto px-4">
+                    <div class="flex items-center justify-between h-16">
+                        <div class="flex items-center">
+                            <button id="open-sidebar-btn" class="lg:hidden text-[var(--text-primary)] mr-4">
+                                <i data-lucide="menu" class="w-6 h-6"></i>
+                            </button>
+                            <h1 id="header-title" class="text-xl font-bold text-[var(--text-primary)]"></h1>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Ãrea de ConteÃºdo DinÃ¢mico -->
+            <main id="app-content" class="flex-1 overflow-y-auto">
+                <!-- Loader inicial -->
+                <div class="flex items-center justify-center h-full">
+                    <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 animate-spin" style="border-top-color: var(--accent-color);"></div>
+                </div>
+            </main>
+        </div>
+    </div>
+    
+    <!-- NavegaÃ§Ã£o Inferior (Mobile) com o ID correto -->
+    <nav id="bottom-nav" class="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-[var(--bg-secondary)] border-t border-[var(--border-color)] flex justify-around items-center z-30">
+        <!-- O conteÃºdo da navegaÃ§Ã£o inferior serÃ¡ injetado aqui pelo ui.js -->
+    </nav>
+    
+    <!-- MÃ³dulo principal da aplicaÃ§Ã£o -->
+    <script type="module" src="app.js"></script>
+</body>
+</html><!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vigilav</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-[var(--bg-primary)] text-[var(--text-primary)]">
+    <div class="flex h-screen">
+        <!-- Overlay para a sidebar no mobile -->
+        <div id="sidebar-overlay" class="sidebar-overlay fixed inset-0 bg-black/60 z-30 opacity-0 pointer-events-none lg:hidden"></div>
+
+        <!-- Sidebar com o ID correto -->
+        <aside id="sidebar" class="sidebar fixed lg:relative inset-y-0 left-0 z-40 w-64 bg-[var(--bg-secondary)] transform -translate-x-full lg:translate-x-0 border-r border-[var(--border-color)]">
+            <!-- O conteÃºdo da sidebar serÃ¡ injetado aqui pelo ui.js -->
+        </aside>
+
+        <!-- ConteÃºdo Principal -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Header com o botÃ£o que tem o ID correto -->
+            <header class="sticky top-0 z-20 bg-[var(--bg-secondary)]/80 backdrop-blur-sm border-b border-[var(--border-color)]">
+                <div class="container mx-auto px-4">
+                    <div class="flex items-center justify-between h-16">
+                        <div class="flex items-center">
+                            <button id="open-sidebar-btn" class="lg:hidden text-[var(--text-primary)] mr-4">
+                                <i data-lucide="menu" class="w-6 h-6"></i>
+                            </button>
+                            <h1 id="header-title" class="text-xl font-bold text-[var(--text-primary)]"></h1>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Ãrea de ConteÃºdo DinÃ¢mico -->
+            <main id="app-content" class="flex-1 overflow-y-auto">
+                <!-- Loader inicial -->
+                <div class="flex items-center justify-center h-full">
+                    <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 animate-spin" style="border-top-color: var(--accent-color);"></div>
+                </div>
+            </main>
+        </div>
+    </div>
+    
+    <!-- NavegaÃ§Ã£o Inferior (Mobile) com o ID correto -->
+    <nav id="bottom-nav" class="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-[var(--bg-secondary)] border-t border-[var(--border-color)] flex justify-around items-center z-30">
+        <!-- O conteÃºdo da navegaÃ§Ã£o inferior serÃ¡ injetado aqui pelo ui.js -->
+    </nav>
+    
+    <!-- MÃ³dulo principal da aplicaÃ§Ã£o -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vigilav - Acesso ao Sistema</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="auth-page">
+    <div class="min-h-screen flex flex-col items-center justify-center p-4">
+        <button id="theme-toggle-btn" class="absolute top-5 right-5 p-2.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors"></button>
+        <div class="w-full max-w-sm md:max-w-md text-center">
+            <div class="mb-10">
+                <img id="main-logo" src="/assets/vigilav-white.png" alt="Vigilav Logo" class="h-20 sm:h-28 mx-auto animated-element animate-down" onerror="this.onerror=null; this.src='/assets/vigilav-white.png';">
+                <h1 class="text-3xl sm:text-4xl font-bold text-[var(--text-primary)] mt-4 animated-element animate-down delay-1">Vigilav</h1>
+                <p class="text-[var(--text-secondary)] animated-element animate-down delay-2">Controle e SeguranÃ§a na Palma da MÃ£o</p>
+            </div>
+            <div class="bg-[var(--bg-secondary)] p-8 md:p-10 rounded-2xl shadow-2xl animated-element animate-up delay-3">
+                <div id="login-view" class="auth-view active">
+                    <form id="loginForm" class="space-y-6">
+                        <div id="auth-message" class="hidden text-sm rounded-lg p-3"></div>
+                        <div class="text-left">
+                            <label for="login-email" class="text-sm font-medium text-[var(--text-primary)]">E-mail</label>
+                            <input type="email" id="login-email" class="w-full mt-1 p-3 bg-[var(--bg-primary)] border-2 rounded-lg outline-none transition-all border-[var(--border-color)] text-[var(--text-primary)] focus:border-[var(--accent-color)]" required autocomplete="email" />
+                        </div>
+                        <div class="text-left">
+                            <label for="login-password" class="text-sm font-medium text-[var(--text-primary)]">Senha</label>
+                            <input type="password" id="login-password" class="w-full mt-1 p-3 bg-[var(--bg-primary)] border-2 rounded-lg outline-none transition-all border-[var(--border-color)] text-[var(--text-primary)] focus:border-[var(--accent-color)]" required autocomplete="current-password" />
+                        </div>
+                        <div class="text-right -mt-2">
+                            <a href="#" data-view="forgot-password-view" class="text-sm font-medium text-[var(--accent-color)] hover:text-[var(--accent-hover)]">Esqueceu a senha?</a>
+                        </div>
+                        <button type="submit" class="w-full !mt-6 py-3 px-4 text-lg font-bold text-white bg-[var(--accent-color)] rounded-lg hover:bg-[var(--accent-hover)] transition-all">Entrar</button>
+                    </form>
+                </div>
+                <div id="forgot-password-view" class="auth-view">
+                     <form id="forgotPasswordForm" class="space-y-6">
+                        <p class="text-[var(--text-secondary)]">Insira seu e-mail para receber o link de recuperaÃ§Ã£o.</p>
+                        <div class="text-left">
+                             <label for="email-forgot" class="text-sm font-medium text-[var(--text-primary)]">E-mail de cadastro</label>
+                            <input type="email" id="email-forgot" required class="w-full mt-1 p-3 bg-[var(--bg-primary)] border-2 rounded-lg outline-none transition-all border-[var(--border-color)] text-[var(--text-primary)] focus:border-[var(--accent-color)]" />
+                        </div>
+                        <button type="submit" class="w-full py-3 px-4 font-bold text-white bg-[var(--accent-color)] rounded-lg hover:bg-[var(--accent-hover)] transition-all">Enviar Link</button>
+                        <div class="text-center"><a href="#" data-view="login-view" class="text-sm font-medium text-[var(--accent-color)] hover:text-[var(--accent-hover)]">Voltar para o Login</a></div>
+                    </form>
+                </div>
+            </div>
+            <div class="mt-6 text-center animated-element animate-up delay-3">
+                <p class="text-[var(--text-secondary)]">NÃ£o tem uma conta? <a href="registro.html" class="font-bold text-[var(--accent-color)] hover:underline">Registre-se aqui</a></p>
+            </div>
+            <footer class="text-center mt-8"><p class="text-xs text-white/50">Â© <span id="currentYear"></span> Vigilav</p></footer>
+        </div>
+    </div>
+    <script type="module">
+        import { app } from './js/firebase.js';
+        import { login, sendPasswordReset } from './js/auth.js';
+
+        const authMessage = document.getElementById('auth-message');
+
+        function showView(viewId) {
+            document.querySelectorAll('.auth-view').forEach(view => view.classList.remove('active'));
+            const activeView = document.getElementById(viewId);
+            if (activeView) activeView.classList.add('active');
+            authMessage.classList.add('hidden');
+        }
+
+        function showMessage(text, type = 'error') {
+            authMessage.textContent = text;
+            authMessage.className = `text-sm rounded-lg p-3 ${type === 'error' ? 'bg-red-500/10 border border-red-500/30 text-red-400' : 'bg-green-500/10 border border-green-500/30 text-green-400'}`;
+            authMessage.classList.remove('hidden');
+        }
+        
+        const THEME_STORAGE_KEY = 'vigilav_theme';
+        const themeToggleBtn = document.getElementById('theme-toggle-btn');
+        const mainLogo = document.getElementById('main-logo');
+
+        function updateThemeUI(theme) {
+            const isDark = theme === 'dark';
+            document.documentElement.setAttribute('data-theme', theme);
+            if (mainLogo) mainLogo.src = isDark ? '/assets/vigilav-white.png' : '/assets/vigilav-black.png';
+            themeToggleBtn.innerHTML = isDark ? '<i data-lucide="sun" class="w-5 h-5 text-yellow-300"></i>' : '<i data-lucide="moon" class="w-5 h-5 text-slate-600"></i>';
+            lucide.createIcons();
+        }
+
+        function initializeTheme() {
+            const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) || 'dark';
+            updateThemeUI(savedTheme);
+            themeToggleBtn.addEventListener('click', () => {
+                const currentTheme = document.documentElement.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                localStorage.setItem(THEME_STORAGE_KEY, newTheme);
+                updateThemeUI(newTheme);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeTheme();
+            lucide.createIcons();
+            showView('login-view');
+            document.getElementById('currentYear').textContent = new Date().getFullYear();
+
+            document.body.addEventListener('click', (e) => {
+                const viewTarget = e.target.closest('[data-view]');
+                if (viewTarget) { e.preventDefault(); showView(viewTarget.dataset.view); }
+            });
+
+            document.getElementById('loginForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('login-email').value.trim();
+                const password = document.getElementById('login-password').value;
+                const submitButton = e.currentTarget.querySelector('button[type="submit"]');
+
+                if (!email || !password) {
+                    showMessage('E-mail e senha sÃ£o obrigatÃ³rios.');
+                    return;
+                }
+                
+                submitButton.disabled = true;
+                submitButton.innerHTML = 'Entrando...';
+                
+                const user = await login(email, password);
+
+                if (user) {
+                    window.location.href = '/';
+                } else {
+                    showMessage('Credenciais invÃ¡lidas. Verifique seu e-mail e senha.');
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = 'Entrar';
+                }
+            });
+
+            document.getElementById('forgotPasswordForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('email-forgot').value.trim();
+                const submitButton = e.currentTarget.querySelector('button[type="submit"]');
+                
+                if (!email) {
+                    showMessage('Por favor, insira seu e-mail.');
+                    return;
+                }
+                
+                submitButton.disabled = true;
+                submitButton.innerHTML = 'Enviando...';
+                
+                const success = await sendPasswordReset(email);
+                
+                if (success) { showMessage('Se o e-mail estiver cadastrado, um link de recuperaÃ§Ã£o foi enviado.', 'success'); } 
+                else { showMessage('Ocorreu um erro. Verifique o e-mail e tente novamente.'); }
+                
+                submitButton.disabled = false;
+                submitButton.innerHTML = 'Enviar Link';
+            });
+        });
+    </script>
+</body>
+</html>
+{
+  "name": "Vigilav",
+  "short_name": "Vigilav",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#14b8a6",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/assets/icons/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/assets/icons/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vigilav - Criar Conta</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="auth-page">
+    <div class="min-h-screen flex flex-col items-center justify-center p-4">
+        <a href="login.html" title="Voltar" class="absolute top-5 left-5 p-2.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center text-white/80">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        <button id="theme-toggle-btn" class="absolute top-5 right-5 p-2.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors"></button>
+        <div class="w-full max-w-sm md:max-w-md text-center">
+            <div class="mb-10">
+                <h1 class="text-3xl sm:text-4xl font-bold text-[var(--text-primary)] mt-4 animated-element animate-down">Crie sua Conta</h1>
+                <p class="text-[var(--text-secondary)] animated-element animate-down delay-1">RÃ¡pido e fÃ¡cil para comeÃ§ar a proteger.</p>
+            </div>
+            <div class="bg-[var(--bg-secondary)] p-8 md:p-10 rounded-2xl shadow-2xl animated-element animate-up delay-2">
+                <form id="registerForm" class="space-y-6">
+                    <div id="register-message" class="hidden text-sm rounded-lg p-3"></div>
+                    <div class="text-left">
+                        <label for="username" class="text-sm font-medium text-[var(--text-primary)]">Seu Nome Completo</label>
+                        <input type="text" id="username" class="w-full mt-1 p-3 bg-[var(--bg-primary)] border-2 rounded-lg outline-none transition-all border-[var(--border-color)] text-[var(--text-primary)] focus:border-[var(--accent-color)]" required />
+                    </div>
+                    <div class="text-left">
+                        <label for="email" class="text-sm font-medium text-[var(--text-primary)]">E-mail</label>
+                        <input type="email" id="email" class="w-full mt-1 p-3 bg-[var(--bg-primary)] border-2 rounded-lg outline-none transition-all border-[var(--border-color)] text-[var(--text-primary)] focus:border-[var(--accent-color)]" required />
+                    </div>
+                    <div class="text-left">
+                        <label for="password" class="text-sm font-medium text-[var(--text-primary)]">Senha (mÃ­n. 6 caracteres)</label>
+                        <input type="password" id="password" class="w-full mt-1 p-3 bg-[var(--bg-primary)] border-2 rounded-lg outline-none transition-all border-[var(--border-color)] text-[var(--text-primary)] focus:border-[var(--accent-color)]" required minlength="6"/>
+                    </div>
+                    <p class="text-xs text-[var(--text-secondary)] !mt-4">Ao se registrar, vocÃª concorda com nossos <a href="#" class="underline">Termos de ServiÃ§o</a>.</p>
+                    <button type="submit" class="w-full py-3 px-4 text-lg font-bold text-white bg-[var(--accent-color)] rounded-lg hover:bg-[var(--accent-hover)] transition-all transform hover:scale-105 active:scale-100 shadow-lg shadow-[var(--accent-color)]/20">Criar Conta</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script type="module">
+        import { app } from './js/firebase.js';
+        import { registerUser } from './js/auth.js'; 
+
+        // LÃ³gica do Tema (idÃªntica ao login.html)
+        const THEME_STORAGE_KEY = 'vigilav_theme';
+        const themeToggleBtn = document.getElementById('theme-toggle-btn');
+        function updateThemeUI(theme) { /* ...cÃ³digo do tema... */ }
+        function initializeTheme() { /* ...cÃ³digo do tema... */ }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeTheme();
+            lucide.createIcons();
+
+            const registerForm = document.getElementById('registerForm');
+            const messageEl = document.getElementById('register-message');
+            
+            registerForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const username = e.target.username.value.trim();
+                const email = e.target.email.value.trim();
+                const password = e.target.password.value;
+                // ... lÃ³gica de submit, sem o 'objective' ...
+                const result = await registerUser({ username, email, password });
+                if (result.success) {
+                    window.location.href = '/';
+                } else {
+                    // ... mostrar erro ...
+                }
+            });
+        });
+
+        // Cole aqui as funÃ§Ãµes completas de tema e submit do seu arquivo anterior.
+        // O cÃ³digo foi omitido para brevidade, mas a estrutura Ã© essa.
+    </script>
+</body>
+</html>
+// Uma versÃ£o para o nosso cache. Mude este nÃºmero para forÃ§ar a atualizaÃ§Ã£o.
+const CACHE_VERSION = 'v1.4';
+const CACHE_NAME = `vigilav-cache-${CACHE_VERSION}`;
+
+// Lista de arquivos essenciais para o app funcionar offline.
+const URLS_TO_CACHE = [
+  '/',
+  '/index.html',
+  '/login.html',
+  '/registro.html',
+  '/style.css',
+  '/manifest.json',
+  '/js/app.js',
+  '/js/auth.js',
+  '/js/firebase.js',
+  '/js/router.js',
+  '/js/ui.js',
+  '/assets/vigilav-white.png',
+  '/assets/vigilav-black.png',
+  '/assets/icons/icon-192.png',
+  '/assets/icons/icon-512.png',
+  'https://cdn.tailwindcss.com',
+  'https://unpkg.com/lucide@latest'
+];
+
+// Instala o Service Worker
+self.addEventListener('install', event => {
+  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        console.log('[Service Worker] Cache aberto. Armazenando arquivos principais.');
+        // Usamos { cache: 'reload' } para garantir que estamos pegando a versÃ£o mais recente da rede durante a instalaÃ§Ã£o.
+        const requests = URLS_TO_CACHE.map(url => new Request(url, { cache: 'reload' }));
+        return cache.addAll(requests);
+      }).catch(error => {
+        console.error('[Service Worker] Falha ao cachear arquivos:', error);
+      })
+  );
+});
+
+// Ativa o Service Worker e limpa caches antigos
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME) {
+            console.log('[Service Worker] Deletando cache antigo:', cacheName);
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
+  );
+});
+
+// Intercepta as requisiÃ§Ãµes de rede
+self.addEventListener('fetch', event => {
+  const { request } = event;
+
+  // Ignora requisiÃ§Ãµes do Firebase
+  if (request.url.includes('firestore.googleapis.com') || request.url.includes('firebaseapp.com')) {
+    return;
+  }
+  
+  // Para a navegaÃ§Ã£o principal, sempre tente a rede primeiro.
+  // Isso garante que o usuÃ¡rio sempre pegue a versÃ£o mais recente do app.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(() => caches.match('/index.html'))
+    );
+    return;
+  }
+
+  // Para todos os outros arquivos (CSS, JS, imagens), use a estratÃ©gia Cache First.
+  event.respondWith(
+    caches.match(request).then(cachedResponse => {
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+      return fetch(request).then(networkResponse => {
+        const responseToCache = networkResponse.clone();
+        caches.open(CACHE_NAME).then(cache => {
+          cache.put(request, responseToCache);
+        });
+        return networkResponse;
+      });
+    })
+  );
+});
+/* style.css */
+
+:root {
+    /* Cores de Acento */
+    --accent-color: #14b8a6; 
+    --accent-hover: #0d9488;
+    
+    /* Tema Claro */
+    --bg-primary-light: #f0f4f8; 
+    --bg-secondary-light: #ffffff;
+    --text-primary-light: #1e293b; 
+    --text-secondary-light: #64748b;
+    --border-color-light: #e2e8f0; 
+    --gradient-start-light: #e0e7ff;
+    --gradient-mid-light: #f0f4f8; 
+    --gradient-end-light: #dbeafe;
+    
+    /* Tema Escuro */
+    --bg-primary-dark: #0f172a; 
+    --bg-secondary-dark: #1e293b;
+    --text-primary-dark: #e2e8f0; 
+    --text-secondary-dark: #94a3b8;
+    --border-color-dark: #334155; 
+    --gradient-start-dark: #0f172a;
+    --gradient-mid-dark: #1c1917; 
+    --gradient-end-dark: #1e293b;
+}
+
+[data-theme="light"] {
+    --bg-primary: var(--bg-primary-light); 
+    --bg-secondary: var(--bg-secondary-light);
+    --text-primary: var(--text-primary-light); 
+    --text-secondary: var(--text-secondary-light);
+    --border-color: var(--border-color-light); 
+    --gradient-start: var(--gradient-start-light);
+    --gradient-mid: var(--gradient-mid-light); 
+    --gradient-end: var(--gradient-end-light);
+}
+[data-theme="dark"] {
+    --bg-primary: var(--bg-primary-dark); 
+    --bg-secondary: var(--bg-secondary-dark);
+    --text-primary: var(--text-primary-dark); 
+    --text-secondary: var(--text-secondary-dark);
+    --border-color: var(--border-color-dark); 
+    --gradient-start: var(--gradient-start-dark);
+    --gradient-mid: var(--gradient-mid-dark); 
+    --gradient-end: var(--gradient-end-dark);
+}
+
+/* Gradiente Animado para as pÃ¡ginas de autenticaÃ§Ã£o */
+body.auth-page { 
+    font-family: 'Sora', sans-serif; 
+    background: linear-gradient(-45deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end), var(--gradient-start));
+    background-size: 400% 400%; 
+    animation: gradientBG 25s ease infinite;
+    color: var(--text-secondary); 
+    transition: background 0.5s ease-in-out;
+    overflow-x: hidden;
+}
+@keyframes gradientBG { 
+    0% { background-position: 0% 50%; } 
+    50% { background-position: 100% 50%; } 
+    100% { background-position: 0% 50%; } 
+}
+
+/* AnimaÃ§Ãµes de Entrada */
+@keyframes fadeInDown { from { opacity: 0; transform: translate3d(0, -20px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
+@keyframes fadeInUp { from { opacity: 0; transform: translate3d(0, 20px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
+.animated-element { opacity: 0; animation-fill-mode: forwards; }
+.animate-down { animation-name: fadeInDown; animation-duration: 0.8s; }
+.animate-up { animation-name: fadeInUp; animation-duration: 0.8s; }
+.delay-1 { animation-delay: 0.2s; } 
+.delay-2 { animation-delay: 0.4s; } 
+.delay-3 { animation-delay: 0.6s; }
+
+/* Views de AutenticaÃ§Ã£o (Login/Registro/Esqueci a Senha) */
+.auth-view { display: none; animation: fadeInUp 0.5s ease-in-out; }
+.auth-view.active { display: block; }
+
+/* Estilos para a app principal (serÃ£o usados depois) */
+body:not(.auth-page) {
+    font-family: 'Sora', sans-serif; 
+    background-color: var(--bg-primary); 
+    color: var(--text-secondary);
+}
+
+/* CORREÃ‡ÃƒO PARA AUTOCOMPLETE DO NAVEGADOR */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px var(--bg-primary) inset !important;
+    -webkit-text-fill-color: var(--text-primary) !important;
+    caret-color: var(--text-primary) !important;
+}
+/* Adicione estas novas regras ao final do seu style.css */
+
+/* Estilos da NavegaÃ§Ã£o */
+.sidebar, .bottom-nav {
+    transition: transform 0.3s ease-in-out;
+}
+
+.sidebar-overlay {
+    transition: opacity 0.3s ease-in-out;
+}
+
+/* Estilo do Link Ativo - MUITO IMPORTANTE */
+.nav-link.active {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+/* No mobile, o link ativo ganha a cor de acento */
+.bottom-nav .nav-link.active {
+    color: var(--accent-color);
+    background-color: transparent; /* Remove o fundo da versÃ£o desktop */
+}

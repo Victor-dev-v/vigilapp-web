@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vigilav - Meu Perfil</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --bg-primary-light: #f0f4f8; --bg-secondary-light: #ffffff;
+            --text-primary-light: #1e293b; --text-secondary-light: #64748b;
+            --border-color-light: #e2e8f0; --accent-color: #14b8a6; --accent-hover: #0d9488;
+        }
+        [data-theme="dark"] {
+            --bg-primary-dark: #0f172a; --bg-secondary-dark: #1e293b;
+            --text-primary-dark: #e2e8f0; --text-secondary-dark: #94a3b8;
+            --border-color-dark: #334155;
+        }
+
+        [data-theme="light"] {
+            --bg-primary: var(--bg-primary-light); --bg-secondary: var(--bg-secondary-light);
+            --text-primary: var(--text-primary-light); --text-secondary: var(--text-secondary-light);
+            --border-color: var(--border-color-light);
+        }
+        [data-theme="dark"] {
+            --bg-primary: var(--bg-primary-dark); --bg-secondary: var(--bg-secondary-dark);
+            --text-primary: var(--text-primary-dark); --text-secondary: var(--text-secondary-dark);
+            --border-color: var(--border-color-dark);
+        }
+
+        body { font-family: 'Sora', sans-serif; background-color: var(--bg-primary); color: var(--text-secondary); }
+        
+        .sidebar { transition: transform 0.3s ease-in-out; }
+        .sidebar-overlay { transition: opacity 0.3s ease-in-out; }
+
+        .profile-photo-container { position: relative; cursor: pointer; }
+        .profile-photo-overlay {
+            position: absolute;
+            inset: 0;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            border-radius: 9999px;
+        }
+        .profile-photo-container:hover .profile-photo-overlay { opacity: 1; }
+        .info-field:disabled { background-color: transparent; border-color: transparent; }
+    </style>
+</head>
+<body class="antialiased">
+    <input type="file" id="photo-upload" class="hidden" accept="image/*">
+
+    <div class="flex h-screen">
+        <!-- Sidebar (Visível em Desktop e Tablet) -->
+        <div id="sidebar-overlay" class="sidebar-overlay fixed inset-0 bg-black/60 z-30 opacity-0 pointer-events-none lg:hidden"></div>
+        <aside id="sidebar" class="sidebar fixed lg:relative inset-y-0 left-0 z-40 w-64 bg-[var(--bg-secondary)] transform -translate-x-full lg:translate-x-0">
+            <div class="flex items-center justify-center p-4 h-16 border-b border-[var(--border-color)]">
+                <img id="logo-sidebar" src="vigilav-white.png" class="h-10" alt="Logo">
+                <span class="ml-3 text-xl font-bold text-[var(--text-primary)]">Vigilav</span>
+            </div>
+            <nav class="p-4">
+                <a href="index.html" class="flex items-center mt-2 px-4 py-2.5 rounded-lg text-[var(--text-primary)] hover:bg-[var(--bg-primary)] font-semibold"><i data-lucide="layout-dashboard" class="w-5 h-5 mr-3 text-[var(--accent-color)]"></i> Dashboard</a>
+                <a href="escala.html" class="flex items-center mt-2 px-4 py-2.5 rounded-lg text-[var(--text-primary)] hover:bg-[var(--bg-primary)] font-semibold"><i data-lucide="calendar-days" class="w-5 h-5 mr-3 text-[var(--accent-color)]"></i> Escalas</a>
+                <a href="ronda.html" class="flex items-center mt-2 px-4 py-2.5 rounded-lg text-[var(--text-primary)] hover:bg-[var(--bg-primary)] font-semibold"><i data-lucide="scan-line" class="w-5 h-5 mr-3 text-[var(--accent-color)]"></i> Rondas</a>
+            </nav>
+            <div class="absolute bottom-0 w-full left-0 p-4 border-t border-[var(--border-color)]"><a href="login.html" class="flex items-center text-[var(--text-secondary)] hover:text-red-500"><i data-lucide="log-out" class="w-5 h-5 mr-3"></i> Sair</a></div>
+        </aside>
+
+        <!-- Conteúdo Principal -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Header Fixo -->
+            <header class="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8 bg-[var(--bg-secondary)]/80 backdrop-blur-sm border-b border-[var(--border-color)] sticky top-0 z-20">
+                <div class="flex items-center">
+                    <button id="open-sidebar-btn" class="lg:hidden text-[var(--text-primary)] mr-4"><i data-lucide="menu" class="w-6 h-6"></i></button>
+                    <h1 class="text-xl font-bold text-[var(--text-primary)]">Meu Perfil</h1>
+                </div>
+                <button id="theme-toggle-btn" class="p-2 rounded-full text-[var(--text-primary)] hover:bg-[var(--bg-primary)]"><i data-lucide="sun" class="w-5 h-5"></i></button>
+            </header>
+
+            <!-- Área de Conteúdo -->
+            <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8">
+                <div class="max-w-4xl mx-auto space-y-8">
+                    <!-- Seção do Cabeçalho do Perfil -->
+                    <div class="bg-[var(--bg-secondary)] p-6 rounded-2xl shadow-sm flex flex-col sm:flex-row items-center gap-6">
+                        <div id="profile-photo-container" class="profile-photo-container">
+                            <img id="profile-photo" src="https://placehold.co/128x128/14b8a6/FFFFFF/png?text=A" alt="Foto do Perfil" class="w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-[var(--border-color)]">
+                            <div class="profile-photo-overlay">
+                                <i data-lucide="camera" class="w-8 h-8 text-white"></i>
+                            </div>
+                        </div>
+                        <div class="text-center sm:text-left">
+                            <h2 class="text-3xl font-bold text-[var(--text-primary)]">Administrador</h2>
+                            <p class="text-[var(--text-secondary)] mt-1">Gerente de Operações</p>
+                        </div>
+                    </div>
+
+                    <!-- Seção de Informações Pessoais -->
+                    <div class="bg-[var(--bg-secondary)] p-6 rounded-2xl shadow-sm">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-xl font-bold text-[var(--text-primary)]">Informações Pessoais</h3>
+                            <button id="edit-info-btn" class="flex items-center gap-2 px-3 py-1.5 text-sm font-semibold bg-[var(--accent-color)] text-white rounded-lg hover:bg-[var(--accent-hover)] transition">
+                                <i data-lucide="pencil" class="w-4 h-4"></i>
+                                <span id="edit-info-text">Editar</span>
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                            <div><label class="text-sm font-medium">Nome Completo</label><input type="text" value="Administrador do Sistema" disabled class="info-field w-full p-2 mt-1 rounded-lg border text-[var(--text-primary)] bg-[var(--bg-primary)] border-[var(--border-color)] focus:ring-2 focus:ring-[var(--accent-color)] outline-none"></div>
+                            <div><label class="text-sm font-medium">E-mail</label><input type="email" value="admin@vigilav.com" disabled class="info-field w-full p-2 mt-1 rounded-lg border text-[var(--text-primary)] bg-[var(--bg-primary)] border-[var(--border-color)] focus:ring-2 focus:ring-[var(--accent-color)] outline-none"></div>
+                            <div><label class="text-sm font-medium">Telefone</label><input type="tel" value="+55 (11) 98765-4321" disabled class="info-field w-full p-2 mt-1 rounded-lg border text-[var(--text-primary)] bg-[var(--bg-primary)] border-[var(--border-color)] focus:ring-2 focus:ring-[var(--accent-color)] outline-none"></div>
+                            <div><label class="text-sm font-medium">Nacionalidade</label><input type="text" value="Brasileiro" disabled class="info-field w-full p-2 mt-1 rounded-lg border text-[var(--text-primary)] bg-[var(--bg-primary)] border-[var(--border-color)] focus:ring-2 focus:ring-[var(--accent-color)] outline-none"></div>
+                            <div class="md:col-span-2"><label class="text-sm font-medium">Descrição</label><textarea rows="3" disabled class="info-field w-full p-2 mt-1 rounded-lg border text-[var(--text-primary)] bg-[var(--bg-primary)] border-[var(--border-color)] focus:ring-2 focus:ring-[var(--accent-color)] outline-none">Responsável pela coordenação das equipes de vigilância e gestão de escalas operacionais.</textarea></div>
+                        </div>
+                    </div>
+
+                    <!-- Seção de Segurança -->
+                    <div class="bg-[var(--bg-secondary)] p-6 rounded-2xl shadow-sm">
+                        <h3 class="text-xl font-bold text-[var(--text-primary)] mb-4">Segurança</h3>
+                        <a href="#" class="flex justify-between items-center p-4 rounded-lg hover:bg-[var(--bg-primary)] transition">
+                            <span class="font-semibold text-[var(--text-primary)]">Alterar Senha</span>
+                            <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                        </a>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+    
+    <!-- Navegação Inferior (Mobile) -->
+    <nav class="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-[var(--bg-secondary)] border-t border-[var(--border-color)] flex justify-around items-center z-30">
+        <a href="index.html" class="bottom-nav-link flex flex-col items-center justify-center text-[var(--text-secondary)]"><i data-lucide="layout-dashboard" class="w-6 h-6"></i><span class="text-xs mt-1">Início</span></a>
+        <a href="escala.html" class="bottom-nav-link flex flex-col items-center justify-center text-[var(--text-secondary)]"><i data-lucide="calendar-days" class="w-6 h-6"></i><span class="text-xs mt-1">Escalas</span></a>
+        <a href="ronda.html" class="bottom-nav-link flex flex-col items-center justify-center text-[var(--text-secondary)]"><i data-lucide="scan-line" class="w-6 h-6"></i><span class="text-xs mt-1">Rondas</span></a>
+        <a href="perfil.html" class="bottom-nav-link active flex flex-col items-center justify-center text-[var(--accent-color)]"><i data-lucide="user-round" class="w-6 h-6"></i><span class="text-xs mt-1">Perfil</span></a>
+    </nav>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+
+            // --- LÓGICA DE NAVEGAÇÃO ---
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            const openBtn = document.getElementById('open-sidebar-btn');
+            openBtn.addEventListener('click', () => { sidebar.classList.remove('-translate-x-full'); overlay.classList.remove('opacity-0', 'pointer-events-none'); });
+            overlay.addEventListener('click', () => { sidebar.classList.add('-translate-x-full'); overlay.classList.add('opacity-0', 'pointer-events-none'); });
+
+            // --- LÓGICA DO PERFIL ---
+            const photoContainer = document.getElementById('profile-photo-container');
+            const photoUploadInput = document.getElementById('photo-upload');
+            const profilePhoto = document.getElementById('profile-photo');
+            const editInfoBtn = document.getElementById('edit-info-btn');
+            const editInfoText = document.getElementById('edit-info-text');
+            const infoFields = document.querySelectorAll('.info-field');
+
+            // Abrir seletor de arquivo ao clicar na foto
+            photoContainer.addEventListener('click', () => photoUploadInput.click());
+
+            // Exibir a foto selecionada
+            photoUploadInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => { profilePhoto.src = e.target.result; };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            // Habilitar/Desabilitar edição dos campos
+            editInfoBtn.addEventListener('click', () => {
+                const isEditing = editInfoText.textContent === 'Salvar';
+                
+                if (isEditing) {
+                    // Lógica para salvar os dados (aqui é apenas simulação)
+                    infoFields.forEach(field => field.disabled = true);
+                    editInfoText.textContent = 'Editar';
+                    editInfoBtn.innerHTML = `<i data-lucide="pencil" class="w-4 h-4"></i><span id="edit-info-text">Editar</span>`;
+                } else {
+                    infoFields.forEach(field => field.disabled = false);
+                    editInfoText.textContent = 'Salvar';
+                    editInfoBtn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i><span id="edit-info-text">Salvar</span>`;
+                    infoFields[0].focus();
+                }
+                lucide.createIcons();
+            });
+
+            // --- LÓGICA DO TEMA ---
+            const THEME_STORAGE_KEY = 'escala_app_theme';
+            const themeToggleBtn = document.getElementById('theme-toggle-btn');
+            
+            function updateThemeUI(theme) {
+                const html = document.documentElement;
+                const logo = document.getElementById('logo-sidebar');
+                const isDark = theme === 'dark';
+                
+                html.setAttribute('data-theme', theme);
+                if (logo) logo.src = isDark ? 'vigilav-white.png' : 'vigilav-black.png';
+                themeToggleBtn.innerHTML = isDark 
+                    ? '<i data-lucide="sun" class="w-5 h-5 text-yellow-300"></i>' 
+                    : '<i data-lucide="moon" class="w-5 h-5 text-slate-600"></i>';
+                lucide.createIcons();
+            }
+
+            themeToggleBtn.addEventListener('click', () => {
+                const newTheme = (localStorage.getItem(THEME_STORAGE_KEY) || 'dark') === 'dark' ? 'light' : 'dark';
+                localStorage.setItem(THEME_STORAGE_KEY, newTheme);
+                updateThemeUI(newTheme);
+            });
+
+            updateThemeUI(localStorage.getItem(THEME_STORAGE_KEY) || 'dark');
+        });
+    </script>
+</body>
+</html>

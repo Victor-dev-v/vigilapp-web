@@ -1,0 +1,66 @@
+<!-- /pages/dashboard-admin.html -->
+
+<!-- O título da página, que será lido pelo nosso router -->
+<div id="page-title" class="hidden">Dashboard</div>
+
+<!-- O conteúdo principal que será injetado na <main> -->
+<div class="p-4 sm:p-6 lg:p-8">
+    <!-- Card de Boas-vindas -->
+    <div class="bg-[var(--bg-secondary)] p-6 rounded-2xl shadow-sm mb-8">
+        <p class="text-[var(--text-secondary)]">Bem-vindo de volta,</p>
+        <h2 class="text-3xl font-bold text-[var(--text-primary)]">Administrador</h2>
+    </div>
+
+    <!-- Grade de Ações Rápidas -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        
+        <!-- Card: Gerenciar Escalas -->
+        <a href="/gerenciar-escalas.html" class="action-card group flex flex-col justify-between bg-[var(--bg-secondary)] p-6 rounded-2xl shadow-sm hover:bg-[var(--accent-color)] transition-all duration-300 transform hover:-translate-y-1">
+            <div>
+                <div class="p-3 bg-white/10 rounded-lg w-fit mb-4">
+                    <i data-lucide="calendar-days" class="w-8 h-8 text-[var(--accent-color)] group-hover:text-white"></i>
+                </div>
+                <h3 class="text-xl font-bold text-[var(--text-primary)] group-hover:text-white">Gerenciar Escalas</h3>
+                <p class="text-[var(--text-secondary)] group-hover:text-white/80 mt-1">Crie e edite os turnos de toda a equipe.</p>
+            </div>
+            <span class="text-right font-semibold text-[var(--text-primary)] group-hover:text-white mt-4">Acessar →</span>
+        </a>
+
+        <!-- Card: Gerenciar Usuários -->
+        <a href="/gerenciar-usuarios.html" class="action-card group flex flex-col justify-between bg-[var(--bg-secondary)] p-6 rounded-2xl shadow-sm hover:bg-[var(--accent-color)] transition-all duration-300 transform hover:-translate-y-1">
+            <div>
+                <div class="p-3 bg-white/10 rounded-lg w-fit mb-4">
+                    <i data-lucide="users" class="w-8 h-8 text-[var(--accent-color)] group-hover:text-white"></i>
+                </div>
+                <h3 class="text-xl font-bold text-[var(--text-primary)] group-hover:text-white">Gerenciar Usuários</h3>
+                <p class="text-[var(--text-secondary)] group-hover:text-white/80 mt-1">Adicione, edite e remova vigilantes e gestores.</p>
+            </div>
+            <span class="text-right font-semibold text-[var(--text-primary)] group-hover:text-white mt-4">Acessar →</span>
+        </a>
+
+        <!-- Card: Gerenciar Locais -->
+        <a href="/gerenciar-locais.html" class="action-card group flex flex-col justify-between bg-[var(--bg-secondary)] p-6 rounded-2xl shadow-sm hover:bg-[var(--accent-color)] transition-all duration-300 transform hover:-translate-y-1">
+            <div>
+                <div class="p-3 bg-white/10 rounded-lg w-fit mb-4">
+                    <i data-lucide="building-2" class="w-8 h-8 text-[var(--accent-color)] group-hover:text-white"></i>
+                </div>
+                <h3 class="text-xl font-bold text-[var(--text-primary)] group-hover:text-white">Gerenciar Locais</h3>
+                <p class="text-[var(--text-secondary)] group-hover:text-white/80 mt-1">Configure os pontos de ronda e parâmetros de cada local.</p>
+            </div>
+            <span class="text-right font-semibold text-[var(--text-primary)] group-hover:text-white mt-4">Acessar →</span>
+        </a>
+
+        <!-- Card: Histórico Completo -->
+        <a href="/historico.html" class="action-card group flex flex-col justify-between bg-[var(--bg-secondary)] p-6 rounded-2xl shadow-sm hover:bg-[var(--accent-color)] transition-all duration-300 transform hover:-translate-y-1">
+            <div>
+                <div class="p-3 bg-white/10 rounded-lg w-fit mb-4">
+                    <i data-lucide="history" class="w-8 h-8 text-[var(--accent-color)] group-hover:text-white"></i>
+                </div>
+                <h3 class="text-xl font-bold text-[var(--text-primary)] group-hover:text-white">Histórico Completo</h3>
+                <p class="text-[var(--text-secondary)] group-hover:text-white/80 mt-1">Consulte todas as rondas, eventos e relatórios.</p>
+            </div>
+            <span class="text-right font-semibold text-[var(--text-primary)] group-hover:text-white mt-4">Acessar →</span>
+        </a>
+
+    </div>
+</div>
